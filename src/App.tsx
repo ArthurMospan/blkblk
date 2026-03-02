@@ -57,13 +57,13 @@ const CardBack = () => (
 );
 
 const CardFace = ({ card, isSelected }) => {
-  const bgClass = isSelected ? 'bg-white shadow-[0_20px_40px_rgba(0,0,0,0.25)] scale-105 z-40' : 'bg-[#111] shadow-xl';
+  const bgClass = isSelected ? 'bg-white shadow-[0_20px_40px_rgba(0,0,0,0.3)]' : 'bg-[#111] shadow-xl';
   const textClass = isSelected ? 'text-black' : 'text-white';
   const borderClass = isSelected ? 'border-white' : 'border-[#0a0a0a] border-[3px]';
 
   if (card.type === CARD_TYPES.CHAMELEON) {
     return (
-      <div className={`w-full h-full rounded-[10%] relative overflow-hidden transition-all duration-300 ${isSelected ? 'bg-white scale-105 shadow-2xl z-40' : 'bg-[#111] border-[3px] border-[#0a0a0a] shadow-xl'}`}>
+      <div className={`w-full h-full rounded-[10%] relative overflow-hidden transition-all duration-300 ${isSelected ? 'bg-white shadow-2xl' : 'bg-[#111] border-[3px] border-[#0a0a0a] shadow-xl'}`}>
          {!isSelected && <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent"></div>}
       </div>
     );
@@ -77,7 +77,7 @@ const CardFace = ({ card, isSelected }) => {
     
     centerContent = (
       <div className="flex flex-col items-center justify-center h-full pt-1">
-        <span className="text-7xl font-light font-sans tracking-tighter" style={fontStyle}>{card.value}</span>
+        <span className="text-[5rem] sm:text-7xl font-light font-sans tracking-tighter" style={fontStyle}>{card.value}</span>
         {is6or9 && <div className={`w-10 h-[3px] mt-1 ${underlineColor}`}></div>}
       </div>
     );
@@ -433,6 +433,7 @@ export default function App() {
         </div>
       )}
 
+      {/* Шапка гравців */}
       <div className="flex-none p-4 pt-8 flex justify-center items-start gap-6 overflow-x-auto snap-x hide-scrollbar z-10">
         {roomData.players.map(p => {
           if (p.id === user.uid) return null;
@@ -449,45 +450,68 @@ export default function App() {
         })}
       </div>
 
-      <div className="flex-1 flex flex-col items-center justify-center relative p-4">
+      {/* Зона столу: Змінюється залежно від того, чий хід */}
+      <div className={`flex flex-col items-center justify-center relative transition-all duration-500 ease-in-out ${isMyTurn ? 'p-2 mt-2 shrink-0' : 'flex-1 p-4'}`}>
         <div className="absolute top-4 right-4 bg-white/60 backdrop-blur-md rounded-full px-3 py-1.5 flex items-center gap-2 shadow-sm z-10 border border-white">
           <Equal size={14} className="text-zinc-400" />
           <span className="text-xs font-bold text-zinc-600">{roomData.discardPileCount}</span>
         </div>
 
-        {pileSize === 0 ? (
-          <div className="text-zinc-400 border-2 border-dashed border-zinc-300 rounded-[2rem] w-32 h-48 flex items-center justify-center text-center uppercase tracking-widest font-bold z-10 bg-white/30 backdrop-blur-sm">Стіл пустий</div>
-        ) : (
-          <div className={`flex flex-col items-center z-10 transition-transform duration-300 w-full ${pileAnimation}`}>
-            <div className="flex flex-col items-center mb-4 px-4 text-center">
-              <span className="text-zinc-500 uppercase text-[10px] font-bold tracking-widest mb-1 leading-tight">{currentPhrase}</span>
-              <span className="text-7xl font-black text-zinc-800 drop-shadow-sm leading-none">{roomData.currentClaim}</span>
-            </div>
-            
-            <div className="relative w-32 h-44 sm:w-40 sm:h-56 mt-2 flex items-center justify-center">
-              {[...Array(Math.min(pileSize, 6))].map((_, i, arr) => {
-                // Найвища (остання в масиві) карта має кут 0, щоб лежати ідеально рівно
-                const isTop = i === arr.length - 1;
-                return (
-                  <div 
-                    key={i} 
-                    className="absolute inset-0 shadow-md rounded-[10%] bg-[#111]" 
-                    style={{ transform: isTop ? 'rotate(0deg)' : `rotate(${Math.sin(i * 123) * 12}deg)`, zIndex: i }}
-                  >
-                    <CardBack />
-                  </div>
-                );
-              })}
-              <div className="absolute -bottom-8 left-0 right-0 text-center font-bold text-xs z-20 text-zinc-400/80 uppercase tracking-widest">Всього: {pileSize} шт</div>
-            </div>
-
-            {roomData.revealedCardsTo === user.uid && roomData.revealedCards && (
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white/90 backdrop-blur-xl border border-white p-6 rounded-3xl text-center animate-in zoom-in z-50 shadow-2xl">
-                <div className="text-zinc-800 text-xs font-bold uppercase mb-4 tracking-widest flex items-center justify-center gap-2"><Eye size={18}/> Око побачило:</div>
-                <div className="flex gap-3 justify-center">{roomData.revealedCards.map((c, i) => (<div key={i} className="w-16 h-24"><CardFace card={c} isSelected={false} /></div>))}</div>
+        {isMyTurn ? (
+          // ЕКРАН "ВАШ ХІД" (Стіл схований)
+          <div className="flex flex-col items-center justify-center text-center animate-in fade-in zoom-in-95 duration-300">
+            <h2 className="text-4xl font-black text-zinc-900 uppercase tracking-widest mb-3 drop-shadow-sm">Ваш хід</h2>
+            {roomData.phase === 'RESPOND' ? (
+              <div className="bg-white/90 backdrop-blur-md rounded-3xl px-8 py-3 shadow-lg border border-white flex flex-col items-center">
+                 <span className="text-xs text-zinc-400 font-bold uppercase tracking-widest mb-1">Заявлено:</span>
+                 <span className="text-6xl font-black text-zinc-800 leading-none">{roomData.currentClaim}</span>
+                 <div className="mt-2 bg-zinc-100 text-zinc-500 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest">На столі: {pileSize}</div>
+              </div>
+            ) : (
+              <div className="bg-white/80 backdrop-blur-md rounded-full px-6 py-2 shadow-sm border border-white text-xs text-zinc-500 font-bold uppercase tracking-widest">
+                 Покладіть карту на стіл
               </div>
             )}
           </div>
+        ) : (
+          // ЕКРАН ЗІ СТОЛОМ (Чужий хід)
+          pileSize === 0 ? (
+            <div className="text-zinc-400 border-2 border-dashed border-zinc-300 rounded-[2rem] w-32 h-48 flex items-center justify-center text-center uppercase tracking-widest font-bold z-10 bg-white/30 backdrop-blur-sm">Стіл пустий</div>
+          ) : (
+            <div className={`flex flex-col items-center z-10 w-full ${pileAnimation}`}>
+              <div className="flex flex-col items-center mb-4 px-4 text-center">
+                <span className="text-zinc-500 uppercase text-[10px] font-bold tracking-widest mb-1 leading-tight">{currentPhrase}</span>
+                <span className="text-7xl font-black text-zinc-800 drop-shadow-sm leading-none">{roomData.currentClaim}</span>
+              </div>
+              
+              {/* Ідеально рівна стопка карт */}
+              <div className="relative w-32 h-44 sm:w-40 sm:h-56 mx-auto mt-2">
+                {[...Array(Math.min(pileSize, 6))].map((_, i, arr) => {
+                  const isTop = i === arr.length - 1;
+                  return (
+                    <div 
+                      key={i} 
+                      className="absolute top-1/2 left-1/2 w-full h-full shadow-[0_4px_20px_rgba(0,0,0,0.15)] rounded-[10%] bg-[#111]" 
+                      style={{ 
+                        transform: `translate(-50%, -50%) ${isTop ? 'rotate(0deg)' : `rotate(${Math.sin(i * 123) * 12}deg)`}`, 
+                        zIndex: i 
+                      }}
+                    >
+                      <CardBack />
+                    </div>
+                  );
+                })}
+                <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 text-center font-bold text-xs z-20 text-zinc-400/80 uppercase tracking-widest whitespace-nowrap">Всього: {pileSize} шт</div>
+              </div>
+
+              {roomData.revealedCardsTo === user.uid && roomData.revealedCards && (
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white/90 backdrop-blur-xl border border-white p-6 rounded-3xl text-center animate-in zoom-in z-50 shadow-2xl">
+                  <div className="text-zinc-800 text-xs font-bold uppercase mb-4 tracking-widest flex items-center justify-center gap-2"><Eye size={18}/> Око побачило:</div>
+                  <div className="flex gap-3 justify-center">{roomData.revealedCards.map((c, i) => (<div key={i} className="w-16 h-24"><CardFace card={c} isSelected={false} /></div>))}</div>
+                </div>
+              )}
+            </div>
+          )
         )}
 
         {!isMyTurn && (
@@ -497,8 +521,11 @@ export default function App() {
         )}
       </div>
 
-      <div className="flex-none flex flex-col pt-2 pb-safe z-20">
-        <div className="px-4 mb-2 flex gap-2 h-14">
+      {/* Зона руки (картки) */}
+      <div className={`flex flex-col pb-safe z-20 transition-all duration-500 ease-in-out ${isMyTurn ? 'flex-1 min-h-0' : 'flex-none'}`}>
+        
+        {/* Кнопки дій */}
+        <div className={`px-4 flex gap-2 shrink-0 transition-all duration-500 overflow-hidden ${isMyTurn ? 'mb-2 h-14 opacity-100' : 'h-0 opacity-0 m-0'}`}>
            {isMyTurn && roomData.phase === 'NEW_ROUND' && (
               <button onClick={() => setShowClaimModal(true)} disabled={selectedCards.length === 0} className="flex-1 bg-zinc-900 text-white rounded-2xl uppercase font-bold text-sm tracking-wide shadow-lg active:scale-95 disabled:opacity-30 disabled:scale-100 transition-all">
                 ПОКЛАСТИ {selectedCards.length > 0 && `(${selectedCards.length})`}
@@ -513,15 +540,30 @@ export default function App() {
            )}
         </div>
 
-        <div className="relative">
-          <div className="flex px-6 pt-12 pb-16 overflow-x-auto snap-x hide-scrollbar min-h-[300px] items-end">
+        {/* Карти в руці */}
+        <div className={`relative transition-all duration-500 ${isMyTurn ? 'flex-1 flex flex-col justify-end' : ''}`}>
+          <div className={`flex overflow-x-auto snap-x hide-scrollbar items-end transition-all duration-500 w-full ${isMyTurn ? 'px-8 pt-8 pb-16 h-full min-h-[300px]' : 'px-6 pt-12 pb-6 min-h-[160px]'}`}>
             {myHand.map((card, idx) => {
               const isSelected = selectedCards.some(c => c.id === card.id);
-              const rotation = (idx - (myHand.length - 1) / 2) * 5; 
+              const rotation = (idx - (myHand.length - 1) / 2) * (isMyTurn ? 4 : 5); 
+              
+              // Розміри: ВЕЛИЧЕЗНІ у свій хід, МАЛЕНЬКІ під час чужого ходу
+              const baseWidth = isMyTurn ? 'w-[150px] sm:w-[180px]' : 'w-[80px] sm:w-[100px]';
+              const baseHeight = isMyTurn ? 'h-[215px] sm:h-[260px]' : 'h-[115px] sm:h-[145px]';
+              const marginL = idx === 0 ? '0' : (isMyTurn ? '-4rem' : '-2.5rem');
+              
+              let transformStr = '';
+              if (isSelected) {
+                 // Якщо карта вибрана не у свій хід - вона сильно збільшується і підстрибує
+                 transformStr = isMyTurn ? `translateY(-30px)` : `translateY(-60px) scale(1.5)`;
+              } else {
+                 transformStr = `rotate(${rotation}deg) translateY(${Math.abs(rotation) * (isMyTurn ? 1.5 : 1.0)}px)`;
+              }
+
               return (
                 <div key={card.id} onClick={() => toggleCard(card)}
-                  className={`snap-center flex-none w-[120px] h-[175px] sm:w-[140px] sm:h-[200px] cursor-pointer select-none transition-all duration-300 relative origin-bottom ${isSelected ? 'z-40' : 'hover:-translate-y-4 hover:z-20'} ${!isMyTurn ? 'opacity-60' : ''}`}
-                  style={{ marginLeft: idx === 0 ? '0' : '-3.5rem', transform: isSelected ? `translateY(-50px)` : `rotate(${rotation}deg) translateY(${Math.abs(rotation)*1.2}px)`, zIndex: isSelected ? 40 : idx }}
+                  className={`snap-center flex-none ${baseWidth} ${baseHeight} cursor-pointer select-none transition-all duration-300 relative origin-bottom ${isSelected ? 'z-50' : 'hover:-translate-y-4 hover:z-30'} ${!isMyTurn && !isSelected ? 'opacity-50' : 'opacity-100'}`}
+                  style={{ marginLeft: marginL, transform: transformStr, zIndex: isSelected ? 50 : idx }}
                 >
                   <CardFace card={card} isSelected={isSelected} />
                 </div>
