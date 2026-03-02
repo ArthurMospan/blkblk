@@ -57,13 +57,13 @@ const CardBack = () => (
 );
 
 const CardFace = ({ card, isSelected }) => {
-  const bgClass = isSelected ? 'bg-white shadow-[0_15px_35px_rgba(0,0,0,0.15)] scale-105' : 'bg-[#111] shadow-xl';
+  const bgClass = isSelected ? 'bg-white shadow-[0_20px_40px_rgba(0,0,0,0.25)] scale-105 z-40' : 'bg-[#111] shadow-xl';
   const textClass = isSelected ? 'text-black' : 'text-white';
   const borderClass = isSelected ? 'border-white' : 'border-[#0a0a0a] border-[3px]';
 
   if (card.type === CARD_TYPES.CHAMELEON) {
     return (
-      <div className={`w-full h-full rounded-[10%] relative overflow-hidden transition-all duration-300 ${isSelected ? 'bg-white scale-105 shadow-xl' : 'bg-[#111] border-[3px] border-[#0a0a0a] shadow-xl'}`}>
+      <div className={`w-full h-full rounded-[10%] relative overflow-hidden transition-all duration-300 ${isSelected ? 'bg-white scale-105 shadow-2xl z-40' : 'bg-[#111] border-[3px] border-[#0a0a0a] shadow-xl'}`}>
          {!isSelected && <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent"></div>}
       </div>
     );
@@ -77,34 +77,34 @@ const CardFace = ({ card, isSelected }) => {
     
     centerContent = (
       <div className="flex flex-col items-center justify-center h-full pt-1">
-        <span className="text-6xl font-light font-sans tracking-tighter" style={fontStyle}>{card.value}</span>
-        {is6or9 && <div className={`w-8 h-[2px] mt-1 ${underlineColor}`}></div>}
+        <span className="text-7xl font-light font-sans tracking-tighter" style={fontStyle}>{card.value}</span>
+        {is6or9 && <div className={`w-10 h-[3px] mt-1 ${underlineColor}`}></div>}
       </div>
     );
     cornerContentTop = (
-      <div className="absolute top-2 left-3 flex flex-col items-center">
-        <span className="font-light text-base leading-none" style={fontStyle}>{card.value}</span>
-        {is6or9 && <div className={`w-3 h-[1px] mt-[1px] ${underlineColor}`}></div>}
+      <div className="absolute top-3 left-4 flex flex-col items-center">
+        <span className="font-light text-xl leading-none" style={fontStyle}>{card.value}</span>
+        {is6or9 && <div className={`w-4 h-[2px] mt-[2px] ${underlineColor}`}></div>}
       </div>
     );
     cornerContentBottom = (
-      <div className="absolute bottom-2 right-3 flex flex-col items-center rotate-180">
-        <span className="font-light text-base leading-none" style={fontStyle}>{card.value}</span>
-        {is6or9 && <div className={`w-3 h-[1px] mt-[1px] ${underlineColor}`}></div>}
+      <div className="absolute bottom-3 right-4 flex flex-col items-center rotate-180">
+        <span className="font-light text-xl leading-none" style={fontStyle}>{card.value}</span>
+        {is6or9 && <div className={`w-4 h-[2px] mt-[2px] ${underlineColor}`}></div>}
       </div>
     );
   } else if (card.type === CARD_TYPES.MARKED) {
-    centerContent = <X size={48} strokeWidth={1} color="currentColor" />;
-    cornerContentTop = <div className="absolute top-2 left-2"><X size={16} strokeWidth={1.5} color="currentColor" /></div>;
-    cornerContentBottom = <div className="absolute bottom-2 right-2 rotate-180"><X size={16} strokeWidth={1.5} color="currentColor" /></div>;
+    centerContent = <X size={64} strokeWidth={1} color="currentColor" />;
+    cornerContentTop = <div className="absolute top-3 left-3"><X size={20} strokeWidth={1.5} color="currentColor" /></div>;
+    cornerContentBottom = <div className="absolute bottom-3 right-3 rotate-180"><X size={20} strokeWidth={1.5} color="currentColor" /></div>;
   } else if (card.type === CARD_TYPES.DISCARD) {
-    centerContent = <Equal size={48} strokeWidth={1} color="currentColor" />;
-    cornerContentTop = <div className="absolute top-2 left-2"><Equal size={16} strokeWidth={1.5} color="currentColor" /></div>;
-    cornerContentBottom = <div className="absolute bottom-2 right-2 rotate-180"><Equal size={16} strokeWidth={1.5} color="currentColor" /></div>;
+    centerContent = <Equal size={64} strokeWidth={1} color="currentColor" />;
+    cornerContentTop = <div className="absolute top-3 left-3"><Equal size={20} strokeWidth={1.5} color="currentColor" /></div>;
+    cornerContentBottom = <div className="absolute bottom-3 right-3 rotate-180"><Equal size={20} strokeWidth={1.5} color="currentColor" /></div>;
   } else if (card.type === CARD_TYPES.EYE) {
-    centerContent = <Eye size={48} strokeWidth={1} color="currentColor" />;
-    cornerContentTop = <div className="absolute top-2 left-2"><Eye size={16} strokeWidth={1.5} color="currentColor" /></div>;
-    cornerContentBottom = <div className="absolute bottom-2 right-2 rotate-180"><Eye size={16} strokeWidth={1.5} color="currentColor" /></div>;
+    centerContent = <Eye size={64} strokeWidth={1} color="currentColor" />;
+    cornerContentTop = <div className="absolute top-3 left-3"><Eye size={20} strokeWidth={1.5} color="currentColor" /></div>;
+    cornerContentBottom = <div className="absolute bottom-3 right-3 rotate-180"><Eye size={20} strokeWidth={1.5} color="currentColor" /></div>;
   }
 
   return (
@@ -130,7 +130,6 @@ export default function App() {
   const [pileAnimation, setPileAnimation] = useState('');
   const [toast, setToast] = useState({ text: '', visible: false, id: 0 });
 
-  // Магічне підключення Tailwind
   useEffect(() => {
     if (!document.getElementById('tailwind-cdn')) {
       const script = document.createElement('script');
@@ -465,12 +464,20 @@ export default function App() {
               <span className="text-7xl font-black text-zinc-800 drop-shadow-sm leading-none">{roomData.currentClaim}</span>
             </div>
             
-            <div className="relative w-28 h-40 sm:w-32 sm:h-48 mt-2 flex items-center justify-center">
-              {[...Array(Math.min(pileSize, 6))].map((_, i) => (
-                <div key={i} className="absolute inset-0 shadow-md rounded-[10%] bg-[#111]" style={{ transform: `rotate(${Math.sin(i * 123) * 8}deg) translate(${Math.cos(i * 321) * 4}px, ${Math.sin(i * 234) * 4}px)`, zIndex: i }}>
-                  <CardBack />
-                </div>
-              ))}
+            <div className="relative w-32 h-44 sm:w-40 sm:h-56 mt-2 flex items-center justify-center">
+              {[...Array(Math.min(pileSize, 6))].map((_, i, arr) => {
+                // Найвища (остання в масиві) карта має кут 0, щоб лежати ідеально рівно
+                const isTop = i === arr.length - 1;
+                return (
+                  <div 
+                    key={i} 
+                    className="absolute inset-0 shadow-md rounded-[10%] bg-[#111]" 
+                    style={{ transform: isTop ? 'rotate(0deg)' : `rotate(${Math.sin(i * 123) * 12}deg)`, zIndex: i }}
+                  >
+                    <CardBack />
+                  </div>
+                );
+              })}
               <div className="absolute -bottom-8 left-0 right-0 text-center font-bold text-xs z-20 text-zinc-400/80 uppercase tracking-widest">Всього: {pileSize} шт</div>
             </div>
 
@@ -507,14 +514,14 @@ export default function App() {
         </div>
 
         <div className="relative">
-          <div className="flex px-8 pt-8 pb-12 overflow-x-auto snap-x hide-scrollbar min-h-[240px] items-end">
+          <div className="flex px-6 pt-12 pb-16 overflow-x-auto snap-x hide-scrollbar min-h-[300px] items-end">
             {myHand.map((card, idx) => {
               const isSelected = selectedCards.some(c => c.id === card.id);
               const rotation = (idx - (myHand.length - 1) / 2) * 5; 
               return (
                 <div key={card.id} onClick={() => toggleCard(card)}
-                  className={`snap-center flex-none w-[96px] h-[140px] sm:w-[110px] sm:h-[160px] cursor-pointer select-none transition-all duration-300 relative origin-bottom ${isSelected ? 'z-30' : 'hover:-translate-y-2 hover:z-20'} ${!isMyTurn ? 'opacity-60' : ''}`}
-                  style={{ marginLeft: idx === 0 ? '0' : '-2.75rem', transform: isSelected ? `translateY(-30px)` : `rotate(${rotation}deg) translateY(${Math.abs(rotation)*0.8}px)`, zIndex: isSelected ? 30 : idx }}
+                  className={`snap-center flex-none w-[120px] h-[175px] sm:w-[140px] sm:h-[200px] cursor-pointer select-none transition-all duration-300 relative origin-bottom ${isSelected ? 'z-40' : 'hover:-translate-y-4 hover:z-20'} ${!isMyTurn ? 'opacity-60' : ''}`}
+                  style={{ marginLeft: idx === 0 ? '0' : '-3.5rem', transform: isSelected ? `translateY(-50px)` : `rotate(${rotation}deg) translateY(${Math.abs(rotation)*1.2}px)`, zIndex: isSelected ? 40 : idx }}
                 >
                   <CardFace card={card} isSelected={isSelected} />
                 </div>
