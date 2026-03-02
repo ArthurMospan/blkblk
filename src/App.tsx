@@ -1,6 +1,6 @@
 // @ts-nocheck
 import React, { useState, useEffect } from 'react';
-import { Eye, X, Equal, Plus } from 'lucide-react';
+import { Eye, X, Equal, Plus, CheckCircle2, AlertCircle, Copy, Check } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
@@ -18,7 +18,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const gameAppId = 'blk-blk-live-game-v1';
+const gameAppId = 'blk-blk-v2';
 
 const CLAIM_PHRASES = [
   "{name} базарить, шо тут", "{name} отвічає, це", "Зуб даю, тут", "Бля буду, це",
@@ -28,6 +28,7 @@ const CLAIM_PHRASES = [
 
 const CARD_TYPES = { STANDARD: 'standard', MARKED: 'X', CHAMELEON: 'chameleon', DISCARD: '=', EYE: 'eye' };
 
+// СУВОРО РАНДОМНА ТА ЧЕСНА КОЛОДА (Алгоритм Фішера-Єйтса)
 const createDeck = () => {
   let deck = [];
   for (let val = 1; val <= 10; val++) {
@@ -41,77 +42,70 @@ const createDeck = () => {
   deck.push({ id: 'd_2', type: CARD_TYPES.DISCARD, value: null });
   deck.push({ id: 'e_1', type: CARD_TYPES.EYE, value: null });
   deck.push({ id: 'e_2', type: CARD_TYPES.EYE, value: null });
-  return deck.sort(() => Math.random() - 0.5);
+  
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+  return deck;
 };
 
 const generateRoomCode = () => Math.random().toString(36).substring(2, 6).toUpperCase();
 
+// СОРОЧКА КАРТИ (ПРОПОРЦІЙНИЙ ЛОГО)
 const CardBack = () => (
-  <div className="w-full h-full bg-[#111] rounded-[10%] border-[3px] border-[#0a0a0a] flex items-center justify-center shadow-lg relative overflow-hidden">
+  <div className="w-full h-full bg-[#111] rounded-[12%] border-[1px] border-white/10 flex items-center justify-center shadow-lg relative overflow-hidden">
     <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none"></div>
-    <div className="flex flex-col items-start transform -skew-x-[15deg]">
-      <span className="text-white font-black text-3xl leading-[0.8] tracking-tighter italic font-sans">BLK</span>
-      <span className="text-white font-black text-3xl leading-[0.8] tracking-tighter italic font-sans">BLK</span>
+    <div className="flex flex-col items-start transform -skew-x-[15deg] scale-[0.55]">
+      <span className="text-white font-black text-xl leading-[0.8] tracking-tighter italic font-sans">BLK</span>
+      <span className="text-white font-black text-xl leading-[0.8] tracking-tighter italic font-sans">BLK</span>
     </div>
   </div>
 );
 
 const CardFace = ({ card, isSelected }) => {
-  const bgClass = isSelected ? 'bg-white shadow-[0_20px_50px_rgba(0,0,0,0.4)]' : 'bg-[#111] shadow-xl';
+  const bgClass = isSelected ? 'bg-white shadow-2xl' : 'bg-[#111] shadow-xl';
   const textClass = isSelected ? 'text-black' : 'text-white';
-  const borderClass = isSelected ? 'border-white' : 'border-[#0a0a0a] border-[3px]';
+  const borderClass = isSelected ? 'border-black/5' : 'border-white/5';
 
   if (card.type === CARD_TYPES.CHAMELEON) {
     return (
-      <div className={`w-full h-full rounded-[10%] relative overflow-hidden transition-all duration-300 ${isSelected ? 'bg-white shadow-2xl' : 'bg-[#111] border-[3px] border-[#0a0a0a] shadow-xl'}`}>
+      <div className={`w-full h-full rounded-[12%] border-[2px] relative overflow-hidden transition-all duration-300 ${bgClass} ${borderClass}`}>
          {!isSelected && <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent"></div>}
       </div>
     );
   }
 
-  let centerContent, cornerContentTop, cornerContentBottom;
+  let centerContent, cornerContentTop;
+  const fontStyle = { fontFamily: "'Space Grotesk', 'Outfit', sans-serif" };
+
   if (card.type === CARD_TYPES.STANDARD) {
     const is6or9 = card.value === 6 || card.value === 9;
     const underlineColor = isSelected ? 'bg-black' : 'bg-white';
-    const fontStyle = { fontFamily: "'Space Grotesk', 'Outfit', sans-serif" };
     
     centerContent = (
-      <div className="flex flex-col items-center justify-center h-full pt-1">
-        <span className="text-7xl sm:text-8xl font-light font-sans tracking-tighter" style={fontStyle}>{card.value}</span>
-        {is6or9 && <div className={`w-12 h-[4px] mt-1 ${underlineColor}`}></div>}
+      <div className="flex flex-col items-center justify-center h-full">
+        <span className="text-5xl font-light tracking-tighter" style={fontStyle}>{card.value}</span>
+        {is6or9 && <div className={`w-8 h-[2.5px] mt-0.5 ${underlineColor}`}></div>}
       </div>
     );
     cornerContentTop = (
-      <div className="absolute top-4 left-5 flex flex-col items-center">
-        <span className="font-light text-2xl leading-none" style={fontStyle}>{card.value}</span>
-        {is6or9 && <div className={`w-5 h-[2px] mt-[2px] ${underlineColor}`}></div>}
+      <div className="absolute top-2 left-2.5 flex flex-col items-center">
+        <span className="font-light text-base leading-none" style={fontStyle}>{card.value}</span>
+        {is6or9 && <div className={`w-3 h-[1px] mt-[1px] ${underlineColor}`}></div>}
       </div>
     );
-    cornerContentBottom = (
-      <div className="absolute bottom-4 right-5 flex flex-col items-center rotate-180">
-        <span className="font-light text-2xl leading-none" style={fontStyle}>{card.value}</span>
-        {is6or9 && <div className={`w-5 h-[2px] mt-[2px] ${underlineColor}`}></div>}
-      </div>
-    );
-  } else if (card.type === CARD_TYPES.MARKED) {
-    centerContent = <X size={80} strokeWidth={1} color="currentColor" />;
-    cornerContentTop = <div className="absolute top-4 left-4"><X size={24} strokeWidth={1.5} color="currentColor" /></div>;
-    cornerContentBottom = <div className="absolute bottom-4 right-4 rotate-180"><X size={24} strokeWidth={1.5} color="currentColor" /></div>;
-  } else if (card.type === CARD_TYPES.DISCARD) {
-    centerContent = <Equal size={80} strokeWidth={1} color="currentColor" />;
-    cornerContentTop = <div className="absolute top-4 left-4"><Equal size={24} strokeWidth={1.5} color="currentColor" /></div>;
-    cornerContentBottom = <div className="absolute bottom-4 right-4 rotate-180"><Equal size={24} strokeWidth={1.5} color="currentColor" /></div>;
-  } else if (card.type === CARD_TYPES.EYE) {
-    centerContent = <Eye size={80} strokeWidth={1} color="currentColor" />;
-    cornerContentTop = <div className="absolute top-4 left-4"><Eye size={24} strokeWidth={1.5} color="currentColor" /></div>;
-    cornerContentBottom = <div className="absolute bottom-4 right-4 rotate-180"><Eye size={24} strokeWidth={1.5} color="currentColor" /></div>;
+  } else {
+    const Icon = card.type === CARD_TYPES.MARKED ? X : card.type === CARD_TYPES.DISCARD ? Equal : Eye;
+    centerContent = <Icon size={44} strokeWidth={1} />;
+    cornerContentTop = <div className="absolute top-2 left-2.5"><Icon size={14} strokeWidth={2.5} /></div>;
   }
 
   return (
-    <div className={`w-full h-full rounded-[10%] ${bgClass} ${textClass} ${borderClass} flex flex-col items-center justify-center relative transition-all duration-300`}>
+    <div className={`w-full h-full rounded-[12%] border-[1px] ${bgClass} ${textClass} ${borderClass} flex flex-col items-center justify-center relative transition-all duration-300 overflow-hidden`}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700&display=swap');`}</style>
-      {!isSelected && <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent rounded-[10%] pointer-events-none"></div>}
-      {cornerContentTop}{centerContent}{cornerContentBottom}
+      {cornerContentTop}
+      {centerContent}
     </div>
   );
 };
@@ -123,12 +117,12 @@ export default function App() {
   const [joinCode, setJoinCode] = useState('');
   const [roomData, setRoomData] = useState(null);
   const [error, setError] = useState('');
-
   const [selectedCards, setSelectedCards] = useState([]);
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [lastPileSize, setLastPileSize] = useState(0);
   const [pileAnimation, setPileAnimation] = useState('');
-  const [toast, setToast] = useState({ text: '', visible: false, id: 0 });
+  const [toast, setToast] = useState({ text: '', type: 'info', visible: false, id: 0 });
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!document.getElementById('tailwind-cdn')) {
@@ -140,15 +134,19 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    signInAnonymously(auth).catch(err => console.error(err));
+    const initAuth = async () => {
+      try {
+        await signInAnonymously(auth);
+      } catch (err) { console.error("Auth error:", err); }
+    };
+    initAuth();
     const unsubscribe = onAuthStateChanged(auth, setUser);
     return () => unsubscribe();
   }, []);
 
   useEffect(() => {
     if (!user || !roomId) return;
-    const currentRoomRef = doc(db, 'artifacts', gameAppId, 'rooms', roomId);
-    
+    const currentRoomRef = doc(db, 'artifacts', gameAppId, 'public', 'data', 'rooms', roomId);
     const unsubscribe = onSnapshot(currentRoomRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
@@ -160,7 +158,7 @@ export default function App() {
         }
         setLastPileSize(currentPileSize);
         if (data.lastEvent && data.lastEvent.ts !== toast.id) {
-          setToast({ text: data.lastEvent.text, visible: true, id: data.lastEvent.ts });
+          setToast({ text: String(data.lastEvent.text), type: data.lastEvent.type || 'info', visible: true, id: data.lastEvent.ts });
         }
       } else {
         setError("Кімнату закрито."); setRoomId(''); setRoomData(null);
@@ -176,10 +174,26 @@ export default function App() {
     }
   }, [toast.visible, toast.id]);
 
+  const copyRoomId = () => {
+    if (!roomData) return;
+    const el = document.createElement('textarea');
+    el.value = roomData.id;
+    document.body.appendChild(el);
+    el.select();
+    try {
+      document.execCommand('copy');
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Copy failed', err);
+    }
+    document.body.removeChild(el);
+  };
+
   const createRoom = async () => {
     if (!userName.trim()) { setError("Введіть ім'я"); return; }
     const code = generateRoomCode();
-    await setDoc(doc(db, 'artifacts', gameAppId, 'rooms', code), {
+    await setDoc(doc(db, 'artifacts', gameAppId, 'public', 'data', 'rooms', code), {
       id: code, hostId: user.uid, status: 'lobby',
       players: [{ id: user.uid, name: userName, isBot: false }],
       playerHands: {}, turnIndex: 0, phase: 'NEW_ROUND', pile: [],
@@ -192,7 +206,7 @@ export default function App() {
   const joinRoom = async () => {
     if (!userName.trim() || !joinCode.trim()) { setError("Введіть дані"); return; }
     const code = joinCode.toUpperCase();
-    const joinRoomRef = doc(db, 'artifacts', gameAppId, 'rooms', code);
+    const joinRoomRef = doc(db, 'artifacts', gameAppId, 'public', 'data', 'rooms', code);
     const snap = await getDoc(joinRoomRef);
     if (snap.exists()) {
       const data = snap.data();
@@ -205,7 +219,7 @@ export default function App() {
   };
 
   const addBot = async () => {
-    const currentRoomRef = doc(db, 'artifacts', gameAppId, 'rooms', roomId);
+    const currentRoomRef = doc(db, 'artifacts', gameAppId, 'public', 'data', 'rooms', roomId);
     const botNum = roomData.players.filter(p => p.isBot).length + 1;
     await updateDoc(currentRoomRef, { players: [...roomData.players, { id: `bot_${Date.now()}`, name: `БОТ ${botNum}`, isBot: true }] });
   };
@@ -218,10 +232,10 @@ export default function App() {
     roomData.players.forEach((p, index) => {
       hands[p.id] = deck.slice(index * cardsPerPlayer, (index + 1) * cardsPerPlayer);
     });
-    await updateDoc(doc(db, 'artifacts', gameAppId, 'rooms', roomId), {
+    await updateDoc(doc(db, 'artifacts', gameAppId, 'public', 'data', 'rooms', roomId), {
       status: 'playing', playerHands: hands, turnIndex: 0, phase: 'NEW_ROUND',
       pile: [], discardPileCount: 0, winnerId: null, currentClaim: null,
-      revealedCardsTo: null, revealedCards: null, lastEvent: { text: 'Гру розпочато!', ts: Date.now() }, claimPhraseIndex: 0
+      revealedCardsTo: null, revealedCards: null, lastEvent: { text: 'Гру розпочато!', type: 'info', ts: Date.now() }, claimPhraseIndex: 0
     });
   };
 
@@ -229,14 +243,16 @@ export default function App() {
 
   const submitPlayCards = async (claim, playerId = user.uid, cards = selectedCards) => {
     if (!roomId) return;
-    const roomDocRef = doc(db, 'artifacts', gameAppId, 'rooms', roomId);
-    const newHand = roomData.playerHands[playerId].filter(c => !cards.some(sc => sc.id === c.id));
-    const newHands = { ...roomData.playerHands, [playerId]: newHand };
-    const newPile = [...roomData.pile, { playerId, cards, claimValue: claim }];
-    
+    const roomDocRef = doc(db, 'artifacts', gameAppId, 'public', 'data', 'rooms', roomId);
+    const snap = await getDoc(roomDocRef);
+    if (!snap.exists()) return;
+    const data = snap.data();
+    const newHand = data.playerHands[playerId].filter(c => !cards.some(sc => sc.id === c.id));
+    const newHands = { ...data.playerHands, [playerId]: newHand };
+    const newPile = [...data.pile, { playerId, cards, claimValue: claim }];
     await updateDoc(roomDocRef, {
       playerHands: newHands, pile: newPile, currentClaim: claim, phase: 'RESPOND',
-      turnIndex: (roomData.turnIndex + 1) % roomData.players.length, winnerId: checkWin(newHands),
+      turnIndex: (data.turnIndex + 1) % data.players.length, winnerId: checkWin(newHands),
       revealedCardsTo: null, revealedCards: null, claimPhraseIndex: Math.floor(Math.random() * CLAIM_PHRASES.length)
     });
     if (playerId === user.uid) { setSelectedCards([]); setShowClaimModal(false); }
@@ -244,345 +260,322 @@ export default function App() {
 
   const submitAction = async (action, playerId = user.uid) => {
     if (!roomId) return;
-    const roomDocRef = doc(db, 'artifacts', gameAppId, 'rooms', roomId);
-    let newHands = { ...roomData.playerHands };
-    let newPile = [...roomData.pile];
-    let newDiscardCount = roomData.discardPileCount;
-    let nextTurn = roomData.turnIndex;
-
+    const roomDocRef = doc(db, 'artifacts', gameAppId, 'public', 'data', 'rooms', roomId);
+    const snap = await getDoc(roomDocRef);
+    if (!snap.exists()) return;
+    const data = snap.data();
+    let newHands = { ...data.playerHands };
+    let newPile = [...data.pile];
     const lastPlay = newPile[newPile.length - 1];
     const isTruth = lastPlay.cards.every(c => c.value === lastPlay.claimValue || c.type === CARD_TYPES.CHAMELEON);
-    const currName = roomData.players.find(p => p.id === playerId)?.name || 'Гравець';
-    const prevName = roomData.players.find(p => p.id === lastPlay.playerId)?.name || 'Попередній';
+    const currName = data.players.find(p => p.id === playerId)?.name || 'Гравець';
+    const prevName = data.players.find(p => p.id === lastPlay.playerId)?.name || 'Попередній';
     let eventMsg = '';
-
+    let eventType = 'info';
     const givePileTo = (targetUid) => {
       newHands[targetUid] = [...newHands[targetUid], ...newPile.flatMap(p => p.cards)];
       newPile = [];
     };
-
     if (action === 'BELIEVE') {
       if (isTruth) {
-        eventMsg = `✅ ${currName} каже "ВІРЮ" і ВГАДУЄ!`;
-        newDiscardCount += newPile.reduce((acc, p) => acc + p.cards.length, 0);
-        newPile = []; nextTurn = roomData.turnIndex;
+        eventMsg = `✅ ${currName} вірить і вгадує! Стіл скинуто.`;
+        eventType = 'success';
+        newPile = [];
       } else {
-        eventMsg = `❌ ${currName} помиляється (це брехня)! Забирає карти.`;
-        givePileTo(playerId); nextTurn = (roomData.turnIndex + 1) % roomData.players.length;
+        eventMsg = `❌ ${currName} помиляється (вірить у брехню)! Забирає карти.`;
+        eventType = 'error';
+        givePileTo(playerId);
       }
     } else {
       if (!isTruth) {
-        eventMsg = `✅ ${currName} каже "БРЕХНЯ" і ВГАДУЄ! ${prevName} забирає карти.`;
-        givePileTo(lastPlay.playerId); nextTurn = roomData.turnIndex;
+        eventMsg = `✅ ${currName} впіймав брехуна! ${prevName} забирає карти.`;
+        eventType = 'success';
+        givePileTo(lastPlay.playerId);
       } else {
-        eventMsg = `❌ ${currName} каже "БРЕХНЯ", але помиляється! Забирає карти.`;
-        givePileTo(playerId); nextTurn = (roomData.turnIndex + 1) % roomData.players.length;
+        eventMsg = `❌ ${currName} каже "БРЕХНЯ", але там була правда! Забирає карти.`;
+        eventType = 'error';
+        givePileTo(playerId);
       }
     }
-
     await updateDoc(roomDocRef, {
-      playerHands: newHands, pile: newPile, discardPileCount: newDiscardCount,
-      turnIndex: nextTurn, phase: 'NEW_ROUND', currentClaim: null, winnerId: checkWin(newHands),
-      revealedCardsTo: null, revealedCards: null, lastEvent: { text: eventMsg, ts: Date.now() }
+      playerHands: newHands, pile: newPile, turnIndex: data.turnIndex,
+      phase: 'NEW_ROUND', currentClaim: null, winnerId: checkWin(newHands),
+      lastEvent: { text: eventMsg, type: eventType, ts: Date.now() }
     });
     if (playerId === user.uid) setSelectedCards([]);
   };
 
   const submitSpecialCard = async (cardType, playerId = user.uid) => {
     if (!roomId) return;
-    const roomDocRef = doc(db, 'artifacts', gameAppId, 'rooms', roomId);
-    const currName = roomData.players.find(p => p.id === playerId)?.name || 'Гравець';
-    const playedCard = roomData.playerHands[playerId].find(c => c.type === cardType);
-    const newHand = roomData.playerHands[playerId].filter(c => c.id !== playedCard.id);
-    const newHands = { ...roomData.playerHands, [playerId]: newHand };
-    
+    const roomDocRef = doc(db, 'artifacts', gameAppId, 'public', 'data', 'rooms', roomId);
+    const snap = await getDoc(roomDocRef);
+    if (!snap.exists()) return;
+    const data = snap.data();
+    const currName = data.players.find(p => p.id === playerId)?.name || 'Гравець';
+    const playedCard = data.playerHands[playerId].find(c => c.type === cardType);
+    const newHand = data.playerHands[playerId].filter(c => c.id !== playedCard.id);
+    const newHands = { ...data.playerHands, [playerId]: newHand };
     let updates = { playerHands: newHands, winnerId: checkWin(newHands) };
-
     if (cardType === CARD_TYPES.DISCARD) {
-      updates.discardPileCount = roomData.discardPileCount + roomData.pile.reduce((acc, p) => acc + p.cards.length, 0) + 1;
       updates.pile = []; updates.phase = 'NEW_ROUND';
-      updates.lastEvent = { text: `⚡ ${currName} кидає ВІДБІЙ!`, ts: Date.now() };
+      updates.lastEvent = { text: `⚡ ${currName} кидає ВІДБІЙ!`, type: 'info', ts: Date.now() };
     } else if (cardType === CARD_TYPES.EYE) {
-      updates.discardPileCount = roomData.discardPileCount + 1;
       updates.revealedCardsTo = playerId;
-      updates.revealedCards = roomData.pile[roomData.pile.length - 1].cards;
-      updates.lastEvent = { text: `👁 ${currName} використовує ОКО.`, ts: Date.now() };
+      updates.revealedCards = data.pile[data.pile.length - 1].cards;
+      updates.lastEvent = { text: `👁 ${currName} дивиться карти.`, type: 'info', ts: Date.now() };
     }
-
     await updateDoc(roomDocRef, updates);
     if (playerId === user.uid) setSelectedCards([]);
   };
 
+  const toggleCard = (card) => {
+    setSelectedCards(prev => {
+      if (prev.some(c => c.id === card.id)) {
+        return prev.filter(c => c.id !== card.id);
+      } else {
+        return [...prev, card];
+      }
+    });
+  };
+
+  // BOT EFFECT
   useEffect(() => {
     if (!roomData || roomData.status !== 'playing' || roomData.winnerId || roomData.hostId !== user?.uid) return;
     const currentPlayer = roomData.players[roomData.turnIndex];
     if (!currentPlayer || !currentPlayer.isBot) return;
 
-    const botId = currentPlayer.id;
-    const hand = roomData.playerHands[botId];
-    if (!hand) return;
+    const timer = setTimeout(async () => {
+      const roomRef = doc(db, 'artifacts', gameAppId, 'public', 'data', 'rooms', roomId);
+      const snap = await getDoc(roomRef);
+      if (!snap.exists()) return;
+      const data = snap.data();
+      const botId = currentPlayer.id;
+      const hand = data.playerHands[botId];
+      if (!hand || hand.length === 0) return;
 
-    const timer = setTimeout(() => {
-      const pileSize = roomData.pile.reduce((acc, p) => acc + p.cards.length, 0);
-
-      if (roomData.phase === 'NEW_ROUND') {
-        const cardsToPlay = hand.slice(0, Math.min(Math.floor(Math.random() * 2) + 1, hand.length));
+      if (data.phase === 'NEW_ROUND') {
+        const toPlay = hand.slice(0, Math.min(Math.floor(Math.random() * 2) + 1, hand.length));
         let claim = Math.floor(Math.random() * 10) + 1;
-        if (Math.random() > 0.3 && cardsToPlay[0].type === CARD_TYPES.STANDARD) claim = cardsToPlay[0].value;
-        submitPlayCards(claim, botId, cardsToPlay);
+        if (toPlay[0].type === CARD_TYPES.STANDARD && Math.random() > 0.3) claim = toPlay[0].value;
+        submitPlayCards(claim, botId, toPlay);
       } else {
-        const hasDiscard = hand.some(c => c.type === CARD_TYPES.DISCARD);
-        const hasEye = hand.some(c => c.type === CARD_TYPES.EYE);
-
-        if (hasDiscard && pileSize > 3 && Math.random() > 0.5) return submitSpecialCard(CARD_TYPES.DISCARD, botId);
-        if (hasEye && Math.random() > 0.7 && roomData.revealedCardsTo !== botId) return submitSpecialCard(CARD_TYPES.EYE, botId);
-        
-        if (roomData.revealedCardsTo === botId) {
-           const isTruth = roomData.revealedCards.every(c => c.value === roomData.currentClaim || c.type === CARD_TYPES.CHAMELEON);
-           return isTruth ? submitAction('BELIEVE', botId) : submitAction('DISBELIEVE', botId);
-        }
-
-        const matchingCards = hand.filter(c => c.value === roomData.currentClaim || c.type === CARD_TYPES.CHAMELEON);
-        if (matchingCards.length > 0 && Math.random() > 0.7) return submitPlayCards(roomData.currentClaim, botId, [matchingCards[0]]);
-
-        if (Math.random() > 0.5 || pileSize > 5) submitAction('DISBELIEVE', botId);
+        const pileSize = data.pile.reduce((acc, p) => acc + p.cards.length, 0);
+        if (Math.random() > 0.65 || pileSize > 4) submitAction('DISBELIEVE', botId);
         else submitAction('BELIEVE', botId);
       }
-    }, 1800);
-
+    }, 2500);
     return () => clearTimeout(timer);
-  }, [roomData, user]);
+  }, [roomData?.turnIndex, roomData?.phase, roomData?.status]);
 
-  const toggleCard = (card) => {
-    if (selectedCards.some(c => c.id === card.id)) setSelectedCards(selectedCards.filter(c => c.id !== card.id));
-    else setSelectedCards([...selectedCards, card]);
-  };
+  if (!user) return <div className="h-dvh bg-stone-50 flex items-center justify-center font-black uppercase text-zinc-900 tracking-widest italic">BLK BLK...</div>;
 
-  if (!user) return <div className="h-dvh bg-stone-50 text-zinc-800 flex items-center justify-center font-mono font-bold uppercase tracking-widest">З'єднання...</div>;
-
+  // LOBBY UI
   if (!roomData || roomData.status === 'lobby') {
     return (
-      <div className="h-dvh bg-gradient-to-br from-stone-50 via-stone-100 to-stone-200 text-zinc-900 font-mono flex flex-col items-center justify-center p-6 relative overflow-hidden">
-        <h1 className="flex flex-col transform -skew-x-[12deg] mb-12 relative z-10 drop-shadow-md">
+      <div className="h-dvh bg-stone-50 text-zinc-900 font-mono flex flex-col items-center justify-center p-6">
+        <h1 className="flex flex-col transform -skew-x-[12deg] mb-12 drop-shadow-md">
           <span className="text-7xl font-black leading-[0.8] tracking-tighter font-sans italic">BLK</span>
-          <span className="text-7xl font-black leading-[0.8] tracking-tighter font-sans italic text-zinc-700 ml-2">BLK</span>
+          <span className="text-7xl font-black leading-[0.8] tracking-tighter font-sans italic text-zinc-400">BLK</span>
         </h1>
-        {error && <div className="bg-red-50 border border-red-200 text-red-600 p-3 mb-6 w-full max-w-sm uppercase text-xs font-bold rounded-2xl text-center z-10 shadow-sm">{error}</div>}
-
+        
+        {error && <div className="bg-red-50 text-red-500 p-3 mb-6 w-full max-w-sm text-xs font-bold rounded-xl text-center border border-red-100 uppercase">{error}</div>}
+        
         {!roomData ? (
-          <div className="w-full max-w-sm space-y-5 z-10 bg-white/60 backdrop-blur-xl p-6 rounded-3xl shadow-xl border border-white/50">
-            <input className="w-full bg-white/80 rounded-2xl p-4 text-lg outline-none text-center uppercase placeholder:text-zinc-400 focus:bg-white focus:ring-2 focus:ring-zinc-900 transition-all shadow-sm" placeholder="ТВОЄ ІМ'Я" value={userName} onChange={e => setUserName(e.target.value)} />
-            <div className="grid grid-cols-2 gap-4">
-              <button onClick={createRoom} className="bg-zinc-900 text-white rounded-2xl p-4 uppercase font-bold text-base shadow-lg hover:shadow-xl active:scale-95 transition-all">СТВОРИТИ</button>
-              <div className="flex flex-col gap-2">
-                <input className="w-full bg-white/80 rounded-xl p-3 text-lg outline-none text-center uppercase placeholder:text-zinc-400 focus:bg-white focus:ring-2 focus:ring-zinc-900 shadow-sm transition-all" placeholder="КОД" maxLength={4} value={joinCode} onChange={e => setJoinCode(e.target.value)} />
-                <button onClick={joinRoom} className="bg-white text-zinc-900 rounded-xl p-3 font-bold uppercase shadow-sm border border-zinc-100 active:scale-95 transition-all">УВІЙТИ</button>
+          <div className="w-full max-w-sm space-y-4">
+            <input className="w-full bg-white border border-zinc-200 rounded-2xl p-4 text-center uppercase font-bold focus:ring-2 focus:ring-zinc-900 outline-none shadow-sm" placeholder="ТВОЄ ІМ'Я" value={userName} onChange={e => setUserName(e.target.value)} />
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                <input className="flex-1 bg-white border border-zinc-200 rounded-2xl p-4 text-center uppercase font-bold text-sm shadow-sm" placeholder="КОД КІМНАТИ" maxLength={4} value={joinCode} onChange={e => setJoinCode(e.target.value)} />
+                <button onClick={joinRoom} className="px-8 bg-zinc-900 text-white rounded-2xl font-black text-xs uppercase active:scale-95 transition-all shadow-xl">УВІЙТИ</button>
+              </div>
+              <div className="flex justify-center pt-2">
+                <button onClick={createRoom} className="text-zinc-400 font-black uppercase text-[10px] tracking-widest hover:text-zinc-900 underline underline-offset-4 active:scale-95 transition-all">
+                  або створити власну кімнату
+                </button>
               </div>
             </div>
           </div>
         ) : (
-          <div className="w-full max-w-sm bg-white/80 backdrop-blur-xl rounded-3xl p-8 text-center space-y-8 z-10 shadow-xl border border-white/50">
-            <div>
-              <p className="text-zinc-400 uppercase text-xs font-bold tracking-widest mb-2">Код кімнати</p>
-              <div className="text-6xl font-black tracking-widest text-zinc-800">{roomData.id}</div>
+          <div className="w-full max-w-sm bg-white rounded-[2.5rem] p-8 text-center space-y-6 shadow-2xl border border-zinc-100">
+            <div onClick={copyRoomId} className="cursor-pointer group relative active:scale-95 transition-all">
+              <p className="text-[9px] text-zinc-400 font-black uppercase mb-1 tracking-[0.2em] flex items-center justify-center gap-1">Натисни щоб скопіювати <Copy size={10}/></p>
+              <p className="text-6xl font-black tracking-[0.2em] group-hover:text-zinc-600 transition-colors">{roomData.id}</p>
+              {copied && <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-zinc-900 text-white text-[10px] px-4 py-1.5 rounded-full shadow-xl animate-in fade-in slide-in-from-bottom-2">Скопійовано!</div>}
             </div>
-            <div className="space-y-3">
-              <p className="text-zinc-400 uppercase text-xs font-bold text-left tracking-widest">Гравці ({roomData.players.length}):</p>
-              {roomData.players.map(p => (
-                <div key={p.id} className="bg-white rounded-2xl p-4 text-left uppercase flex justify-between items-center shadow-sm border border-zinc-100">
-                  <span className="font-bold text-zinc-800">{p.name} {p.isBot && <span className="text-zinc-400 text-xs ml-1">(Бот)</span>}</span>
-                  {p.id === roomData.hostId && <span className="bg-zinc-100 text-zinc-600 text-[10px] px-3 py-1 rounded-full font-bold">ХОСТ</span>}
-                </div>
-              ))}
+            <div className="space-y-2 text-left max-h-48 overflow-y-auto pr-2 custom-scroll">
+              {roomData.players.map(p => (<div key={p.id} className="bg-zinc-50 rounded-2xl p-4 flex justify-between items-center font-bold uppercase text-xs border border-zinc-100"><span>{p.name}</span>{p.id === roomData.hostId && <span className="text-[8px] bg-zinc-900 text-white px-2 py-1 rounded-md font-black uppercase tracking-tighter">Host</span>}</div>))}
             </div>
             {roomData.hostId === user.uid && (
-              <div className="flex flex-col gap-3 pt-4">
-                {roomData.players.length < 4 && <button onClick={addBot} className="bg-zinc-50 text-zinc-500 rounded-2xl p-3 text-sm font-bold uppercase hover:bg-zinc-100 transition-colors">+ ДОДАТИ БОТА</button>}
-                <button onClick={startGame} disabled={roomData.players.length < 2} className="w-full bg-zinc-900 text-white rounded-2xl p-4 text-lg font-bold uppercase shadow-lg disabled:opacity-40 active:scale-95 transition-all">РОЗПОЧАТИ ГРУ</button>
+              <div className="space-y-4 pt-4">
+                <button onClick={addBot} className="w-full bg-stone-100 text-zinc-600 rounded-2xl p-4 font-black text-[11px] uppercase tracking-widest active:scale-95 flex items-center justify-center gap-2 border border-zinc-200">
+                   <Plus size={18}/> Додати бота
+                </button>
+                <button onClick={startGame} disabled={roomData.players.length < 2} className="w-full bg-zinc-900 text-white rounded-[1.5rem] p-5 font-black uppercase tracking-widest disabled:opacity-20 shadow-xl shadow-zinc-900/30">Почати гру</button>
               </div>
             )}
+            {roomData.hostId !== user.uid && <p className="text-[10px] text-zinc-400 font-black uppercase tracking-widest animate-pulse">Очікуємо хоста...</p>}
           </div>
         )}
       </div>
     );
   }
 
+  // GAME HELPERS
   const isMyTurn = roomData.players[roomData.turnIndex].id === user.uid;
   const myHand = roomData.playerHands[user.uid] || [];
-  const pileSize = roomData.pile.reduce((acc, p) => acc + p.cards.length, 0);
   
-  const lastPlayerId = roomData.pile[roomData.pile.length - 1]?.playerId;
-  const lastPlayerName = roomData.players.find(p => p.id === lastPlayerId)?.name || 'Хтось';
-  const currentPhrase = CLAIM_PHRASES[roomData.claimPhraseIndex || 0].replace('{name}', lastPlayerName);
+  const sortedHand = [...myHand].sort((a, b) => {
+    if (a.type === CARD_TYPES.STANDARD && b.type !== CARD_TYPES.STANDARD) return -1;
+    if (a.type !== CARD_TYPES.STANDARD && b.type === CARD_TYPES.STANDARD) return 1;
+    if (a.type === CARD_TYPES.STANDARD && b.type === CARD_TYPES.STANDARD) return a.value - b.value;
+    return a.type.localeCompare(b.type);
+  });
+
+  const pileSize = roomData.pile.reduce((acc, p) => acc + p.cards.length, 0);
+  const lastPlayId = roomData.pile[roomData.pile.length-1]?.playerId;
+  const lastPlayerName = roomData.players.find(p => p.id === lastPlayId)?.name || 'Хтось';
+  const currentPhrase = roomData.currentClaim ? String(CLAIM_PHRASES[roomData.claimPhraseIndex || 0].replace('{name}', lastPlayerName)) : null;
 
   if (roomData.winnerId) {
+    const winnerName = roomData.players.find(p => p.id === roomData.winnerId).name;
     return (
-      <div className="h-dvh bg-gradient-to-br from-stone-50 via-stone-100 to-stone-200 text-zinc-900 font-mono flex flex-col items-center justify-center p-6 text-center">
-        <h1 className="text-6xl font-black mb-4 uppercase text-zinc-800">{roomData.players.find(p => p.id === roomData.winnerId).name}<br/>ПЕРЕМАГАЄ!</h1>
-        <p className="text-zinc-400 font-bold mb-12 tracking-widest uppercase">ГРА ЗАВЕРШЕНА</p>
-        {roomData.hostId === user.uid && <button onClick={startGame} className="bg-zinc-900 text-white rounded-2xl p-4 px-10 text-lg font-bold uppercase shadow-xl active:scale-95 transition-all">НОВА ГРА</button>}
+      <div className="h-dvh bg-zinc-900 text-white flex flex-col items-center justify-center p-6 text-center font-mono">
+        <h1 className="text-6xl font-black mb-4 uppercase italic tracking-tighter">BLK<br/>{winnerName}<br/>WIN!</h1>
+        {roomData.hostId === user.uid && <button onClick={startGame} className="mt-12 bg-white text-zinc-900 rounded-3xl px-12 py-5 font-black uppercase tracking-widest shadow-2xl active:scale-95 transition-all">Restart</button>}
       </div>
     );
   }
 
   return (
-    <div className="h-dvh bg-gradient-to-br from-stone-50 via-stone-100 to-stone-200 text-zinc-900 font-mono flex flex-col overflow-hidden relative">
+    <div className="h-dvh bg-stone-100 text-zinc-900 font-mono flex flex-col overflow-hidden relative">
+      {/* ПОВІДОМЛЕННЯ (TOAST) */}
       {toast.visible && (
-        <div className="absolute top-[15%] left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-sm bg-zinc-900/95 backdrop-blur-md text-white p-4 rounded-2xl shadow-2xl animate-in slide-in-from-top-4 fade-in duration-300 flex flex-col items-center text-center pointer-events-none">
-          <p className="font-bold uppercase tracking-wide text-xs leading-relaxed">{toast.text}</p>
+        <div className={`absolute top-4 left-1/2 -translate-x-1/2 z-[100] w-[92%] max-w-sm p-4 rounded-[2rem] shadow-2xl flex items-center gap-3 animate-in slide-in-from-top-4 duration-500
+          ${toast.type === 'success' ? 'bg-green-500 text-white ring-8 ring-green-500/10' : 
+            toast.type === 'error' ? 'bg-red-500 text-white ring-8 ring-red-500/10' : 
+            'bg-zinc-900 text-white shadow-zinc-900/20'}`}
+        >
+          {toast.type === 'success' ? <CheckCircle2 size={24} strokeWidth={2.5}/> : toast.type === 'error' ? <AlertCircle size={24} strokeWidth={2.5}/> : null}
+          <p className="text-[11px] font-black uppercase tracking-wider leading-tight">{toast.text}</p>
         </div>
       )}
 
-      {/* Шапка з суперниками */}
-      <div className="flex-none p-4 pt-8 flex justify-center items-start gap-6 overflow-x-auto snap-x hide-scrollbar z-10">
+      {/* ОПОНЕНТИ */}
+      <div className="flex-none p-4 pt-12 flex justify-center items-start gap-4 overflow-x-auto hide-scrollbar z-10">
         {roomData.players.map(p => {
           if (p.id === user.uid) return null;
           const isTurn = roomData.players[roomData.turnIndex].id === p.id;
           return (
-            <div key={p.id} className={`snap-center flex flex-col items-center transition-all duration-300 ${isTurn ? 'scale-110 opacity-100 translate-y-2' : 'scale-90 opacity-40'}`}>
-              <div className={`text-[10px] uppercase font-bold truncate w-24 text-center mb-2 tracking-wider ${isTurn ? 'text-zinc-800' : 'text-zinc-500'}`}>{p.name}</div>
-              <div className="relative w-12 h-16 shadow-md transform rotate-[-5deg] rounded-2xl">
-                 <CardBack />
-                 <div className="absolute -bottom-2 -right-2 bg-white text-zinc-900 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shadow-sm border border-zinc-100">{roomData.playerHands[p.id]?.length || 0}</div>
+            <div key={p.id} className={`flex flex-col items-center transition-all duration-300 ${isTurn ? 'scale-110 opacity-100 translate-y-1' : 'scale-90 opacity-40'}`}>
+              <div className="text-[9px] uppercase font-black mb-1.5 w-16 truncate text-center tracking-tight">{p.name}</div>
+              <div className="relative w-10 h-14 shadow-md rotate-[-1.5deg]"><CardBack />
+                 <div className="absolute -bottom-1.5 -right-1.5 bg-zinc-900 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] font-black shadow-lg">{roomData.playerHands[p.id]?.length || 0}</div>
               </div>
             </div>
           );
         })}
       </div>
 
-      {/* Основна зона: Стіл або напис "Ваш хід" */}
-      <div className={`flex flex-col items-center justify-center relative transition-all duration-500 ease-in-out ${isMyTurn ? 'p-2 mt-2 shrink-0 h-[30%]' : 'flex-1 p-4'}`}>
-        <div className="absolute top-4 right-4 bg-white/60 backdrop-blur-md rounded-full px-3 py-1.5 flex items-center gap-2 shadow-sm z-10 border border-white">
-          <Equal size={14} className="text-zinc-400" />
-          <span className="text-xs font-bold text-zinc-600">{roomData.discardPileCount}</span>
-        </div>
+      {/* СТІЛ */}
+      <div className="flex-1 relative flex flex-col items-center justify-center p-4">
+        {isMyTurn && <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-zinc-900 text-white px-5 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-xl animate-pulse">Ваш хід</div>}
 
-        {isMyTurn ? (
-          <div className="flex flex-col items-center justify-center text-center animate-in fade-in zoom-in-95 duration-500">
-            <h2 className="text-5xl font-black text-zinc-900 uppercase tracking-widest mb-4 drop-shadow-sm italic">Ваш хід</h2>
-            {roomData.phase === 'RESPOND' && (
-              <div className="bg-white/90 backdrop-blur-2xl rounded-[2.5rem] px-10 py-5 shadow-2xl border border-white flex flex-col items-center animate-bounce-subtle">
-                 <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest mb-1">Побити:</span>
-                 <span className="text-7xl font-black text-zinc-800 leading-none">{roomData.currentClaim}</span>
-                 <div className="mt-3 bg-zinc-900 text-white text-[9px] font-bold px-4 py-1.5 rounded-full uppercase tracking-widest">На столі: {pileSize}</div>
-              </div>
-            )}
+        {pileSize > 0 && (
+          <div className="text-center mb-8 w-full px-4 animate-in fade-in duration-700">
+            <span className="text-[10px] text-zinc-400 font-black uppercase block mb-1 tracking-wider italic">{currentPhrase}</span>
+            <span className="text-[5.5rem] font-black leading-none tracking-tighter drop-shadow-sm">{roomData.currentClaim}</span>
           </div>
-        ) : (
-          pileSize === 0 ? (
-            <div className="text-zinc-400 border-2 border-dashed border-zinc-300 rounded-[2rem] w-32 h-48 flex items-center justify-center text-center uppercase tracking-widest font-bold z-10 bg-white/30 backdrop-blur-sm">Стіл пустий</div>
-          ) : (
-            <div className={`flex flex-col items-center z-10 w-full h-full justify-center ${pileAnimation}`}>
-              <div className="flex flex-col items-center mb-6 px-4 text-center">
-                <span className="text-zinc-500 uppercase text-[10px] font-bold tracking-widest mb-1 leading-tight">{currentPhrase}</span>
-                <span className="text-8xl font-black text-zinc-800 drop-shadow-sm leading-none">{roomData.currentClaim}</span>
-              </div>
-              
-              <div className="relative w-40 h-56 sm:w-48 sm:h-64">
-                {[...Array(Math.min(pileSize, 6))].map((_, i, arr) => {
-                  const isTop = i === arr.length - 1;
-                  return (
-                    <div 
-                      key={i} 
-                      className="absolute top-1/2 left-1/2 w-full h-full shadow-[0_10px_40px_rgba(0,0,0,0.2)] rounded-[10%] bg-[#111]" 
-                      style={{ 
-                        transform: `translate(-50%, -50%) ${isTop ? 'rotate(0deg)' : `rotate(${Math.sin(i * 123) * 15}deg)`}`, 
-                        zIndex: i 
-                      }}
-                    >
-                      <CardBack />
-                    </div>
-                  );
-                })}
-                <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 text-center font-bold text-xs z-20 text-zinc-400/80 uppercase tracking-widest whitespace-nowrap">Стопка: {pileSize}</div>
-              </div>
-
-              {roomData.revealedCardsTo === user.uid && roomData.revealedCards && (
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white/90 backdrop-blur-xl border border-white p-8 rounded-3xl text-center animate-in zoom-in z-50 shadow-2xl">
-                  <div className="text-zinc-800 text-xs font-bold uppercase mb-4 tracking-widest flex items-center justify-center gap-2"><Eye size={18}/> Око побачило:</div>
-                  <div className="flex gap-4 justify-center">{roomData.revealedCards.map((c, i) => (<div key={i} className="w-20 h-28"><CardFace card={c} isSelected={false} /></div>))}</div>
-                </div>
-              )}
+        )}
+        
+        <div className="relative w-36 h-52 sm:w-44 sm:h-64">
+          {pileSize === 0 ? (
+            <div className="absolute inset-0 border-[3px] border-dashed border-zinc-200 rounded-[12%] flex flex-col items-center justify-center text-[10px] uppercase font-black text-zinc-300 tracking-widest space-y-2 opacity-60">
+              <Plus size={20} /><span>Пусто</span>
             </div>
-          )
+          ) : (
+            [...Array(Math.min(pileSize, 6))].map((_, i, arr) => {
+              const isTop = i === arr.length - 1;
+              const rot = isTop ? 0 : Math.sin(i * 123) * 12;
+              const offX = isTop ? 0 : Math.cos(i * 456) * 8;
+              const offY = isTop ? 0 : Math.sin(i * 789) * 8;
+              return (
+                <div key={i} className="absolute top-1/2 left-1/2 w-full h-full shadow-2xl transition-all duration-500" 
+                     style={{ transform: `translate(-50%, -50%) translate(${offX}px, ${offY}px) rotate(${rot}deg)`, zIndex: i }}>
+                  <CardBack />
+                </div>
+              );
+            })
+          )}
+          {pileSize > 0 && (
+            <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 text-center font-black text-[10px] z-20 text-zinc-400 uppercase tracking-widest bg-stone-100 px-4 py-1.5 rounded-full border border-zinc-200 shadow-sm">Стопка: {pileSize}</div>
+          )}
+        </div>
+        
+        {!isMyTurn && <div className="mt-14 bg-white/60 backdrop-blur-md px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest animate-pulse border border-white shadow-sm">Думає {roomData.players[roomData.turnIndex].name}...</div>}
+
+        {roomData.revealedCardsTo === user.uid && roomData.revealedCards && (
+          <div className="absolute inset-0 bg-white/98 backdrop-blur-md z-[60] flex flex-col items-center justify-center p-6 animate-in zoom-in duration-300">
+            <p className="text-[10px] font-black uppercase tracking-[0.3em] mb-10 text-zinc-400">👁 ОКО ПОБАЧИЛО:</p>
+            <div className="flex gap-4">{roomData.revealedCards.map((c, i) => (<div key={i} className="w-24 h-36 animate-in slide-in-from-bottom-4 duration-500"><CardFace card={c} isSelected={false} /></div>))}</div>
+            <button onClick={() => updateDoc(doc(db, 'artifacts', gameAppId, 'public', 'data', 'rooms', roomId), { revealedCardsTo: null, revealedCards: null })} className="mt-12 bg-zinc-900 text-white rounded-3xl px-12 py-5 text-[10px] font-black uppercase tracking-widest shadow-2xl active:scale-95 transition-all">Зрозумів</button>
+          </div>
         )}
       </div>
 
-      {/* Рука гравця: Величезна у свій хід, маленька в чужий */}
-      <div className={`flex flex-col pb-safe z-30 transition-all duration-700 ease-in-out ${isMyTurn ? 'flex-1 min-h-0 justify-end' : 'h-[180px]'}`}>
-        
-        {/* Панель кнопок (тільки у твій хід) */}
-        <div className={`px-4 flex gap-3 shrink-0 transition-all duration-500 overflow-hidden ${isMyTurn ? 'mb-4 h-16 opacity-100' : 'h-0 opacity-0 m-0'}`}>
-           {isMyTurn && roomData.phase === 'NEW_ROUND' && (
-              <button onClick={() => setShowClaimModal(true)} disabled={selectedCards.length === 0} className="flex-1 bg-zinc-900 text-white rounded-3xl uppercase font-black text-base tracking-widest shadow-2xl active:scale-95 disabled:opacity-30 transition-all">
-                ПОКЛАСТИ {selectedCards.length > 0 && `(${selectedCards.length})`}
-              </button>
-           )}
-           {isMyTurn && roomData.phase === 'RESPOND' && (
-              <>
-                <button onClick={() => submitPlayCards(roomData.currentClaim)} disabled={selectedCards.length === 0} className="flex-1 bg-zinc-900 text-white rounded-3xl uppercase font-black text-sm tracking-widest shadow-2xl active:scale-95 disabled:opacity-30 transition-all">ДОДАТИ</button>
-                <button onClick={() => submitAction('BELIEVE')} className="flex-1 bg-white text-zinc-900 rounded-3xl uppercase font-black text-sm tracking-widest shadow-lg active:scale-95 transition-all border border-zinc-100">ВІРЮ</button>
-                <button onClick={() => submitAction('DISBELIEVE')} className="flex-1 bg-white text-zinc-900 rounded-3xl uppercase font-black text-sm tracking-widest shadow-lg active:scale-95 transition-all border border-zinc-100 text-red-600">БРЕХНЯ</button>
-              </>
-           )}
+      <div className={`bg-white border-t border-zinc-200/50 shadow-[0_-20px_50px_rgba(0,0,0,0.05)] z-30 transition-all duration-500 ease-in-out ${isMyTurn ? 'h-[50%]' : 'h-[175px] opacity-70 grayscale-[0.2]'}`}>
+        <div className={`flex gap-3 px-4 transition-all duration-500 overflow-hidden ${isMyTurn ? 'h-16 mt-4 opacity-100' : 'h-0 opacity-0 m-0'}`}>
+          {roomData.phase === 'NEW_ROUND' ? (
+            <button onClick={() => setShowClaimModal(true)} disabled={selectedCards.length === 0} className="flex-1 bg-zinc-900 text-white rounded-[1.5rem] font-black uppercase tracking-widest disabled:opacity-20 active:scale-95 transition-all shadow-xl shadow-zinc-900/20">ПОКЛАСТИ ({selectedCards.length})</button>
+          ) : (
+            <>
+              <button onClick={() => submitPlayCards(roomData.currentClaim)} disabled={selectedCards.length === 0} className="flex-1 bg-zinc-900 text-white rounded-[1.5rem] font-black text-[11px] uppercase tracking-widest active:scale-95 transition-all shadow-xl shadow-zinc-900/20">ДОДАТИ</button>
+              <button onClick={() => submitAction('BELIEVE')} className="flex-1 border-[3.5px] border-zinc-900 rounded-[1.5rem] font-black text-[11px] uppercase tracking-widest active:scale-95 transition-all">ВІРЮ</button>
+              <button onClick={() => submitAction('DISBELIEVE')} className="flex-1 bg-red-600 text-white rounded-[1.5rem] font-black text-[11px] uppercase tracking-widest active:scale-95 transition-all shadow-xl shadow-red-600/20">БРЕХНЯ</button>
+            </>
+          )}
         </div>
 
-        {/* Скролл карток */}
-        <div className={`relative transition-all duration-700 ${isMyTurn ? 'h-[75%] sm:h-[60%]' : 'h-full opacity-60'}`}>
-          <div className={`flex overflow-x-auto snap-x hide-scrollbar items-end transition-all duration-700 w-full h-full ${isMyTurn ? 'px-12 pt-12 pb-20' : 'px-6 pt-10 pb-4'}`}>
-            {myHand.map((card, idx) => {
+        <div className="w-full h-full relative overflow-x-auto snap-x hide-scrollbar flex items-center px-10">
+          <div className="flex flex-nowrap items-center h-full">
+            {sortedHand.map((card, idx) => {
               const isSelected = selectedCards.some(c => c.id === card.id);
-              const rotation = (idx - (myHand.length - 1) / 2) * (isMyTurn ? 3.5 : 5); 
-              
-              // Динамічний розмір
-              const cardW = isMyTurn ? 'w-[160px] sm:w-[220px]' : (isSelected ? 'w-[130px]' : 'w-[85px]');
-              const cardH = isMyTurn ? 'h-[235px] sm:h-[310px]' : (isSelected ? 'h-[185px]' : 'h-[120px]');
-              const marginL = idx === 0 ? '0' : (isMyTurn ? '-5.5rem' : '-3rem');
-              
-              let transformStr = '';
-              if (isSelected) {
-                 transformStr = isMyTurn ? `translateY(-60px) scale(1.05)` : `translateY(-80px) scale(1.8)`;
-              } else {
-                 transformStr = `rotate(${rotation}deg) translateY(${Math.abs(rotation) * (isMyTurn ? 1.8 : 1.2)}px)`;
-              }
-
+              const overlap = isMyTurn ? -32 : -21;
+              const cardW = isMyTurn ? 'w-[130px]' : 'w-[85px]';
+              const cardH = isMyTurn ? 'h-[190px]' : 'h-[125px]';
               return (
                 <div key={card.id} onClick={() => toggleCard(card)}
-                  className={`snap-center flex-none ${cardW} ${cardH} cursor-pointer select-none transition-all duration-500 relative origin-bottom ${isSelected ? 'z-[100]' : 'hover:-translate-y-8 hover:z-50'} ${!isMyTurn && !isSelected ? 'grayscale-[0.5]' : ''}`}
-                  style={{ marginLeft: marginL, transform: transformStr, zIndex: isSelected ? 100 : idx }}
+                  className={`snap-center flex-none ${cardW} ${cardH} cursor-pointer transition-all duration-300 relative group`}
+                  style={{ marginLeft: idx === 0 ? '0' : `${overlap}px`, zIndex: isSelected ? 100 : idx, transform: isSelected ? 'translateY(-45px)' : 'translateY(0px)' }}
                 >
                   <CardFace card={card} isSelected={isSelected} />
                 </div>
               );
             })}
+            <div className="flex-none w-24 h-10"></div>
           </div>
         </div>
       </div>
 
-      {/* Модалка вибору номіналу */}
       {showClaimModal && (
-        <div className="absolute inset-0 bg-stone-100/98 backdrop-blur-3xl z-[200] flex flex-col items-center justify-center p-8 animate-in fade-in zoom-in-95 duration-300">
-          <button onClick={() => setShowClaimModal(false)} className="absolute top-10 right-10 p-4 text-zinc-400 hover:text-zinc-900 transition-colors bg-white rounded-full shadow-md"><X size={36}/></button>
-          <div className="flex flex-col items-center w-full max-w-sm">
-            <h2 className="text-2xl font-black uppercase tracking-[0.2em] mb-3 text-center text-zinc-900">Заявити як:</h2>
-            <p className="text-[10px] text-zinc-400 mb-10 font-bold uppercase tracking-widest">Вибрано карт: {selectedCards.length}</p>
-            <div className="grid grid-cols-5 gap-4 w-full">
+        <div className="absolute inset-0 bg-white/98 backdrop-blur-2xl z-[200] flex flex-col items-center justify-center p-8 animate-in fade-in zoom-in-95 duration-300">
+          <button onClick={() => setShowClaimModal(false)} className="absolute top-10 right-10 p-4 text-zinc-300 hover:text-zinc-900 transition-colors bg-white rounded-full shadow-lg"><X size={36}/></button>
+          <div className="w-full max-w-sm">
+            <p className="text-center text-[10px] font-black uppercase tracking-[0.4em] mb-12 text-zinc-400 italic">Заявити як:</p>
+            <div className="grid grid-cols-5 gap-3">
               {[1,2,3,4,5,6,7,8,9,10].map(val => (
-                <button key={val} onClick={() => submitPlayCards(val)} className="aspect-square bg-white rounded-[1.5rem] flex items-center justify-center text-4xl font-light text-zinc-800 shadow-xl hover:bg-zinc-900 hover:text-white transition-all border border-zinc-50 active:scale-90">{val}</button>
+                <button key={val} onClick={() => submitPlayCards(val)} className="aspect-square bg-white border border-zinc-100 rounded-[2rem] flex items-center justify-center text-4xl font-light shadow-sm active:bg-zinc-900 active:text-white transition-all transform active:scale-90">{val}</button>
               ))}
             </div>
-            
-            {/* Спеціальні дії (тільки якщо вибрано 1 карту) */}
             {selectedCards.length === 1 && [CARD_TYPES.DISCARD, CARD_TYPES.EYE].includes(selectedCards[0].type) && (
-               <div className="mt-12 w-full space-y-4 animate-in slide-in-from-bottom-4 duration-500">
-                 <p className="text-center text-[9px] text-zinc-400 font-bold uppercase tracking-widest">Або спеціальна дія:</p>
-                 {selectedCards[0].type === CARD_TYPES.DISCARD && (
-                   <button onClick={() => submitSpecialCard(CARD_TYPES.DISCARD)} className="w-full py-5 bg-zinc-900 text-white rounded-[2rem] flex items-center justify-center gap-3 font-black text-sm uppercase shadow-2xl active:scale-95 transition-all"><Equal size={20}/> Використати ВІДБІЙ</button>
-                 )}
-                 {selectedCards[0].type === CARD_TYPES.EYE && (
-                   <button onClick={() => submitSpecialCard(CARD_TYPES.EYE)} className="w-full py-5 bg-zinc-900 text-white rounded-[2rem] flex items-center justify-center gap-3 font-black text-sm uppercase shadow-2xl active:scale-95 transition-all"><Eye size={20}/> Використати ОКО</button>
-                 )}
-               </div>
+              <div className="mt-14 space-y-4 animate-in slide-in-from-bottom-4 duration-500">
+                <p className="text-center text-[9px] font-black uppercase tracking-widest text-zinc-300 mb-2">Або спеціальний хід:</p>
+                {selectedCards[0].type === CARD_TYPES.DISCARD && (
+                  <button onClick={() => submitSpecialCard(CARD_TYPES.DISCARD)} className="w-full py-5 bg-zinc-900 text-white rounded-[2rem] flex items-center justify-center gap-3 font-black text-[10px] uppercase active:scale-95 transition-all shadow-2xl shadow-zinc-900/30"><Equal size={18}/> КИНУТИ ВІДБІЙ</button>
+                )}
+                {selectedCards[0].type === CARD_TYPES.EYE && (
+                  <button onClick={() => submitSpecialCard(CARD_TYPES.EYE)} className="w-full py-5 bg-zinc-900 text-white rounded-[2rem] flex items-center justify-center gap-3 font-black text-[10px] uppercase active:scale-95 transition-all shadow-2xl shadow-zinc-900/30"><Eye size={18}/> ВИКОРИСТАТИ ОКО</button>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -592,10 +585,11 @@ export default function App() {
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
-        @keyframes bounce-subtle { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
-        .animate-bounce-subtle { animation: bounce-subtle 3s infinite ease-in-out; }
-        @keyframes drop { 0% { transform: translateY(-50px) scale(1.1); opacity: 0; } 100% { transform: translateY(0) scale(1); opacity: 1; } }
-        .animate-drop { animation: drop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        .custom-scroll::-webkit-scrollbar { width: 4px; }
+        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
+        @keyframes drop { 0% { transform: translate(-50%, -120%) scale(1.2); opacity: 0; } 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
+        .animate-drop { animation: drop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
       `}} />
     </div>
   );
