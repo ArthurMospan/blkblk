@@ -450,28 +450,28 @@ export default function App() {
         })}
       </div>
 
-      <div className="flex-1 flex flex-col items-center justify-center relative p-6">
+      <div className="flex-1 flex flex-col items-center justify-center relative p-4">
         <div className="absolute top-4 right-4 bg-white/60 backdrop-blur-md rounded-full px-3 py-1.5 flex items-center gap-2 shadow-sm z-10 border border-white">
           <Equal size={14} className="text-zinc-400" />
           <span className="text-xs font-bold text-zinc-600">{roomData.discardPileCount}</span>
         </div>
 
         {pileSize === 0 ? (
-          <div className="text-zinc-400 border-2 border-dashed border-zinc-300 rounded-[2rem] w-48 h-64 flex items-center justify-center text-center uppercase tracking-widest font-bold z-10 bg-white/30 backdrop-blur-sm">Стіл пустий</div>
+          <div className="text-zinc-400 border-2 border-dashed border-zinc-300 rounded-[2rem] w-32 h-48 flex items-center justify-center text-center uppercase tracking-widest font-bold z-10 bg-white/30 backdrop-blur-sm">Стіл пустий</div>
         ) : (
-          <div className={`flex flex-col items-center z-10 transition-transform duration-300 ${pileAnimation}`}>
-            <div className="flex flex-col items-center mb-8 px-4 text-center">
+          <div className={`flex flex-col items-center z-10 transition-transform duration-300 w-full ${pileAnimation}`}>
+            <div className="flex flex-col items-center mb-4 px-4 text-center">
               <span className="text-zinc-500 uppercase text-[10px] font-bold tracking-widest mb-1 leading-tight">{currentPhrase}</span>
-              <span className="text-7xl font-black text-zinc-800 drop-shadow-sm">{roomData.currentClaim}</span>
+              <span className="text-7xl font-black text-zinc-800 drop-shadow-sm leading-none">{roomData.currentClaim}</span>
             </div>
             
-            <div className="relative w-36 h-52">
+            <div className="relative w-28 h-40 sm:w-32 sm:h-48 mt-2 flex items-center justify-center">
               {[...Array(Math.min(pileSize, 6))].map((_, i) => (
-                <div key={i} className="absolute inset-0 shadow-md rounded-[10%] bg-[#111]" style={{ transform: `rotate(${Math.sin(i * 123) * 10}deg) translate(${Math.cos(i * 321) * 10}px, ${-i * 3}px)`, zIndex: i }}>
+                <div key={i} className="absolute inset-0 shadow-md rounded-[10%] bg-[#111]" style={{ transform: `rotate(${Math.sin(i * 123) * 8}deg) translate(${Math.cos(i * 321) * 4}px, ${Math.sin(i * 234) * 4}px)`, zIndex: i }}>
                   <CardBack />
                 </div>
               ))}
-              <div className="absolute -bottom-10 left-0 right-0 text-center font-bold text-xs z-20 text-zinc-400/80 uppercase tracking-widest">Всього: {pileSize} шт</div>
+              <div className="absolute -bottom-8 left-0 right-0 text-center font-bold text-xs z-20 text-zinc-400/80 uppercase tracking-widest">Всього: {pileSize} шт</div>
             </div>
 
             {roomData.revealedCardsTo === user.uid && roomData.revealedCards && (
@@ -484,14 +484,14 @@ export default function App() {
         )}
 
         {!isMyTurn && (
-          <div className="absolute bottom-8 bg-white/80 backdrop-blur-md rounded-full px-5 py-2 uppercase text-zinc-500 text-[10px] font-bold tracking-widest animate-pulse z-10 flex items-center gap-2 shadow-sm border border-white">
+          <div className="absolute bottom-4 bg-white/80 backdrop-blur-md rounded-full px-5 py-2 uppercase text-zinc-500 text-[10px] font-bold tracking-widest animate-pulse z-10 flex items-center gap-2 shadow-sm border border-white">
             Думає {roomData.players[roomData.turnIndex].name}...
           </div>
         )}
       </div>
 
-      <div className="flex-none flex flex-col pt-4 pb-safe z-20">
-        <div className="px-4 mb-4 flex gap-2 h-14">
+      <div className="flex-none flex flex-col pt-2 pb-safe z-20">
+        <div className="px-4 mb-2 flex gap-2 h-14">
            {isMyTurn && roomData.phase === 'NEW_ROUND' && (
               <button onClick={() => setShowClaimModal(true)} disabled={selectedCards.length === 0} className="flex-1 bg-zinc-900 text-white rounded-2xl uppercase font-bold text-sm tracking-wide shadow-lg active:scale-95 disabled:opacity-30 disabled:scale-100 transition-all">
                 ПОКЛАСТИ {selectedCards.length > 0 && `(${selectedCards.length})`}
@@ -507,14 +507,14 @@ export default function App() {
         </div>
 
         <div className="relative">
-          <div className="flex px-6 pb-8 overflow-x-auto snap-x hide-scrollbar h-[220px] items-end">
+          <div className="flex px-8 pt-8 pb-12 overflow-x-auto snap-x hide-scrollbar min-h-[240px] items-end">
             {myHand.map((card, idx) => {
               const isSelected = selectedCards.some(c => c.id === card.id);
-              const rotation = (idx - (myHand.length - 1) / 2) * 4; 
+              const rotation = (idx - (myHand.length - 1) / 2) * 5; 
               return (
                 <div key={card.id} onClick={() => toggleCard(card)}
-                  className={`snap-center flex-none w-[110px] h-[160px] cursor-pointer select-none transition-all duration-300 relative origin-bottom ${isSelected ? 'z-30' : 'hover:-translate-y-2 hover:z-20'} ${!isMyTurn ? 'opacity-60' : ''}`}
-                  style={{ marginLeft: idx === 0 ? '0' : '-3.5rem', transform: isSelected ? `translateY(-40px)` : `rotate(${rotation}deg) translateY(${Math.abs(rotation)*0.5}px)`, zIndex: isSelected ? 30 : idx }}
+                  className={`snap-center flex-none w-[96px] h-[140px] sm:w-[110px] sm:h-[160px] cursor-pointer select-none transition-all duration-300 relative origin-bottom ${isSelected ? 'z-30' : 'hover:-translate-y-2 hover:z-20'} ${!isMyTurn ? 'opacity-60' : ''}`}
+                  style={{ marginLeft: idx === 0 ? '0' : '-2.75rem', transform: isSelected ? `translateY(-30px)` : `rotate(${rotation}deg) translateY(${Math.abs(rotation)*0.8}px)`, zIndex: isSelected ? 30 : idx }}
                 >
                   <CardFace card={card} isSelected={isSelected} />
                 </div>
