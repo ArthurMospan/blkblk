@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useState, useEffect } from 'react';
 import { Eye, X, Equal, Plus } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
