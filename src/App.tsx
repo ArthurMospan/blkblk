@@ -1,6 +1,6 @@
 // @ts-nocheck
-import React, { useState, useEffect } from 'react';
-import { Eye, X, Equal, Plus, CheckCircle2, AlertCircle, Copy, Check } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Eye, X, Equal, Plus, CheckCircle2, AlertCircle, Copy, Check, Volume2 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
@@ -20,18 +20,73 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const gameAppId = 'blk-blk-v2';
 
+// --- СИСТЕМА ЗВУКІВ ---
+const playSound = (type) => {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  const now = ctx.currentTime;
+
+  switch (type) {
+    case 'click':
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(800, now);
+      gain.gain.setValueAtTime(0.1, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+      osc.start(now);
+      osc.stop(now + 0.1);
+      break;
+    case 'play':
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(400, now);
+      osc.frequency.exponentialRampToValueAtTime(600, now + 0.1);
+      gain.gain.setValueAtTime(0.1, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+      osc.start(now);
+      osc.stop(now + 0.2);
+      break;
+    case 'success':
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(500, now);
+      osc.frequency.exponentialRampToValueAtTime(1000, now + 0.3);
+      gain.gain.setValueAtTime(0.1, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+      osc.start(now);
+      osc.stop(now + 0.3);
+      break;
+    case 'error':
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(200, now);
+      osc.frequency.linearRampToValueAtTime(100, now + 0.4);
+      gain.gain.setValueAtTime(0.1, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+      osc.start(now);
+      osc.stop(now + 0.4);
+      break;
+  }
+};
+
 const CLAIM_PHRASES = [
-  "{name}: Тут {count} шт. «{value}»", 
-  "{name} отвічає, шо тут {count} шт. «{value}»", 
-  "Зуб даю, тут {count} шт. «{value}» ({name})", 
-  "Бля буду, тут {count} шт. «{value}»",
-  "{name} мамой клянеться: {count} шт. «{value}»", 
-  "Залізобетонно тут {count} шт. «{value}»", 
-  "Інфа сотка: {count} шт. «{value}»",
-  "Сто пудів тут {count} шт. «{value}» ({name})", 
-  "Не парся, тут точно {count} шт. «{value}»", 
-  "{name} стелить: {count} шт. «{value}»"
+  "{name}: Тут {countWord} по «{value}»", 
+  "{name} отвічає, шо тут {countWord} по «{value}»", 
+  "Зуб даю, тут {countWord} по «{value}» ({name})", 
+  "Бля буду, тут {countWord} по «{value}»",
+  "{name} мамой клянеться: {countWord} по «{value}»", 
+  "Залізобетонно тут {countWord} по «{value}»", 
+  "Інфа сотка: {countWord} по «{value}»",
+  "Сто пудів тут {countWord} по «{value}» ({name})", 
+  "Не парся, тут точно {countWord} по «{value}»", 
+  "{name} стелить: {countWord} по «{value}»"
 ];
+
+const countToWord = (n) => {
+  const map = { 1: 'одна', 2: 'дві', 3: 'три', 4: 'чотири' };
+  return map[n] || n;
+};
 
 const CARD_TYPES = { STANDARD: 'standard', MARKED: 'X', CHAMELEON: 'chameleon', DISCARD: '=', EYE: 'eye' };
 
@@ -64,7 +119,7 @@ const generateRoomCode = () => Math.random().toString(36).substring(2, 6).toUppe
 const CardBack = () => (
   <div className="w-full h-full bg-[#111] rounded-[12%] border-[1px] border-white/10 flex items-center justify-center shadow-lg relative overflow-hidden">
     <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none"></div>
-    <div className="flex flex-col items-start transform -skew-x-[15deg] scale-[0.55]">
+    <div className="flex flex-col items-start transform -skew-x-[15deg] scale-[0.5]">
       <span className="text-white font-black text-xl leading-[0.8] tracking-tighter italic font-sans">BLK</span>
       <span className="text-white font-black text-xl leading-[0.8] tracking-tighter italic font-sans">BLK</span>
     </div>
@@ -72,7 +127,7 @@ const CardBack = () => (
 );
 
 const CardFace = ({ card, isSelected }) => {
-  const bgClass = isSelected ? 'bg-white shadow-2xl ring-2 ring-zinc-900/5' : 'bg-[#111] shadow-xl';
+  const bgClass = isSelected ? 'bg-white shadow-2xl ring-4 ring-zinc-900/10' : 'bg-[#111] shadow-xl';
   const textClass = isSelected ? 'text-black' : 'text-white';
   const borderClass = isSelected ? 'border-black/5' : 'border-white/5';
 
@@ -90,7 +145,6 @@ const CardFace = ({ card, isSelected }) => {
   if (card.type === CARD_TYPES.STANDARD) {
     const is6or9 = card.value === 6 || card.value === 9;
     const underlineColor = isSelected ? 'bg-black' : 'bg-white';
-    
     centerContent = (
       <div className="flex flex-col items-center justify-center h-full">
         <span className="text-5xl font-light tracking-tighter" style={fontStyle}>{card.value}</span>
@@ -112,8 +166,7 @@ const CardFace = ({ card, isSelected }) => {
   return (
     <div className={`w-full h-full rounded-[12%] border-[1px] ${bgClass} ${textClass} ${borderClass} flex flex-col items-center justify-center relative transition-all duration-300 overflow-hidden`}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700&display=swap');`}</style>
-      {cornerContentTop}
-      {centerContent}
+      {cornerContentTop}{centerContent}
     </div>
   );
 };
@@ -165,6 +218,8 @@ export default function App() {
         setLastPileSize(currentPileSize);
         if (data.lastEvent && data.lastEvent.ts !== toast.id) {
           setToast({ text: String(data.lastEvent.text), type: data.lastEvent.type || 'info', visible: true, id: data.lastEvent.ts });
+          if (data.lastEvent.type === 'success') playSound('success');
+          if (data.lastEvent.type === 'error') playSound('error');
         }
       } else {
         setError("Кімнату закрито."); setRoomId(''); setRoomData(null);
@@ -189,6 +244,7 @@ export default function App() {
     try {
       document.execCommand('copy');
       setCopied(true);
+      playSound('click');
       setTimeout(() => setCopied(false), 2000);
     } catch (err) { console.error('Copy failed', err); }
     document.body.removeChild(el);
@@ -205,6 +261,7 @@ export default function App() {
       revealedCardsTo: null, revealedCards: null, lastEvent: null, claimPhraseIndex: 0
     });
     setRoomId(code); setError('');
+    playSound('click');
   };
 
   const joinRoom = async () => {
@@ -219,13 +276,15 @@ export default function App() {
         await updateDoc(joinRoomRef, { players: [...data.players, { id: user.uid, name: userName, isBot: false }] });
       }
       setRoomId(code); setError('');
-    } else { setError("Кімнату не знайдено"); }
+      playSound('click');
+    } else { setError("Кімнату не знайдено"); playSound('error'); }
   };
 
   const addBot = async () => {
     const currentRoomRef = doc(db, 'artifacts', gameAppId, 'public', 'data', 'rooms', roomId);
     const botNum = roomData.players.filter(p => p.isBot).length + 1;
     await updateDoc(currentRoomRef, { players: [...roomData.players, { id: `bot_${Date.now()}`, name: `БОТ ${botNum}`, isBot: true }] });
+    playSound('click');
   };
 
   const startGame = async () => {
@@ -241,6 +300,7 @@ export default function App() {
       pile: [], discardPileCount: 0, winnerId: null, currentClaim: null,
       revealedCardsTo: null, revealedCards: null, lastEvent: { text: 'Гру розпочато!', type: 'info', ts: Date.now() }, claimPhraseIndex: 0
     });
+    playSound('success');
   };
 
   const submitPlayCards = async (claim, playerId = user.uid, cards = selectedCards) => {
@@ -252,12 +312,15 @@ export default function App() {
     const newHand = data.playerHands[playerId].filter(c => !cards.some(sc => sc.id === c.id));
     const newHands = { ...data.playerHands, [playerId]: newHand };
     const newPile = [...data.pile, { playerId, cards, claimValue: claim }];
+    
+    // ПРИМІТКА: Ми НЕ перевіряємо переможця тут, бо раунд ще не закінчився.
     await updateDoc(roomDocRef, {
       playerHands: newHands, pile: newPile, currentClaim: claim, phase: 'RESPOND',
-      turnIndex: (data.turnIndex + 1) % data.players.length, winnerId: checkWin(newHands),
+      turnIndex: (data.turnIndex + 1) % data.players.length,
       revealedCardsTo: null, revealedCards: null, claimPhraseIndex: Math.floor(Math.random() * CLAIM_PHRASES.length)
     });
     if (playerId === user.uid) { setSelectedCards([]); setShowClaimModal(false); }
+    playSound('play');
   };
 
   const submitAction = async (action, playerId = user.uid) => {
@@ -271,7 +334,7 @@ export default function App() {
     const lastPlay = newPile[newPile.length - 1];
     const isTruth = lastPlay.cards.every(c => c.value === lastPlay.claimValue || c.type === CARD_TYPES.CHAMELEON);
     const currName = data.players.find(p => p.id === playerId)?.name || 'Гравець';
-    const prevName = data.players.find(p => p.id === lastPlay.playerId)?.name || 'Попередній';
+    const prevName = data.players.find(p => p.id === lastPlay?.playerId)?.name || 'Попередній';
     let eventMsg = '';
     let eventType = 'info';
     let nextTurn = data.turnIndex;
@@ -286,7 +349,6 @@ export default function App() {
         eventMsg = `✅ ${currName} вірить і вгадує! Стіл скинуто.`;
         eventType = 'success';
         newPile = [];
-        // Хід залишається у того ж гравця
       } else {
         eventMsg = `❌ ${currName} помиляється (вірить у брехню)! Забирає карти.`;
         eventType = 'error';
@@ -298,7 +360,6 @@ export default function App() {
         eventMsg = `✅ ${currName} впіймав брехуна! ${prevName} забирає карти.`;
         eventType = 'success';
         givePileTo(lastPlay.playerId);
-        // Хід у того, хто впіймав
       } else {
         eventMsg = `❌ ${currName} каже "БРЕХНЯ", але там була правда! Забирає карти.`;
         eventType = 'error';
@@ -306,9 +367,13 @@ export default function App() {
         nextTurn = (data.turnIndex + 1) % data.players.length;
       }
     }
+
+    // ТІЛЬКИ ТУТ ПЕРЕВІРЯЄМО ПЕРЕМОЖЦЯ (Коли стопку розіграно)
+    const winner = checkWin(newHands);
+
     await updateDoc(roomDocRef, {
       playerHands: newHands, pile: newPile, turnIndex: nextTurn,
-      phase: 'NEW_ROUND', currentClaim: null, winnerId: checkWin(newHands),
+      phase: 'NEW_ROUND', currentClaim: null, winnerId: winner,
       lastEvent: { text: eventMsg, type: eventType, ts: Date.now() }
     });
     if (playerId === user.uid) setSelectedCards([]);
@@ -324,10 +389,13 @@ export default function App() {
     const playedCard = data.playerHands[playerId].find(c => c.type === cardType);
     const newHand = data.playerHands[playerId].filter(c => c.id !== playedCard.id);
     const newHands = { ...data.playerHands, [playerId]: newHand };
-    let updates = { playerHands: newHands, winnerId: checkWin(newHands) };
+    let updates = { playerHands: newHands };
+    
     if (cardType === CARD_TYPES.DISCARD) {
       updates.pile = []; updates.phase = 'NEW_ROUND';
       updates.lastEvent = { text: `⚡ ${currName} кидає ВІДБІЙ!`, type: 'info', ts: Date.now() };
+      // Оскільки раунд закінчено "Відбоєм", перевіряємо переможця
+      updates.winnerId = checkWin(newHands);
     } else if (cardType === CARD_TYPES.EYE) {
       updates.revealedCardsTo = playerId;
       updates.revealedCards = data.pile[data.pile.length - 1].cards;
@@ -335,9 +403,11 @@ export default function App() {
     }
     await updateDoc(roomDocRef, updates);
     if (playerId === user.uid) setSelectedCards([]);
+    playSound('play');
   };
 
   const toggleCard = (card) => {
+    playSound('click');
     setSelectedCards(prev => {
       if (prev.some(c => c.id === card.id)) return prev.filter(c => c.id !== card.id);
       return [...prev, card];
@@ -355,11 +425,12 @@ export default function App() {
       const data = snap.data();
       const botId = currentPlayer.id;
       const hand = data.playerHands[botId];
-      if (!hand || hand.length === 0) return;
+      if (!hand) return;
+
       if (data.phase === 'NEW_ROUND') {
         const toPlay = hand.slice(0, Math.min(Math.floor(Math.random() * 2) + 1, hand.length));
         let claim = Math.floor(Math.random() * 10) + 1;
-        if (toPlay[0].type === CARD_TYPES.STANDARD && Math.random() > 0.4) claim = toPlay[0].value;
+        if (toPlay.length > 0 && toPlay[0].type === CARD_TYPES.STANDARD && Math.random() > 0.3) claim = toPlay[0].value;
         submitPlayCards(claim, botId, toPlay);
       } else {
         const pileSize = data.pile.reduce((acc, p) => acc + p.cards.length, 0);
@@ -372,9 +443,10 @@ export default function App() {
 
   if (!user) return <div className="h-dvh bg-stone-50 flex items-center justify-center font-black uppercase text-zinc-900 tracking-widest italic">BLK BLK...</div>;
 
+  // --- LOBBY UI ---
   if (!roomData || roomData.status === 'lobby') {
     return (
-      <div className="h-dvh w-full fixed inset-0 bg-stone-50 text-zinc-900 font-mono flex flex-col items-center justify-center p-6 overflow-hidden">
+      <div className="h-dvh w-full fixed inset-0 bg-stone-50 text-zinc-900 font-mono flex flex-col items-center justify-center p-6 overflow-hidden text-center">
         <h1 className="flex flex-col transform -skew-x-[12deg] mb-12 drop-shadow-md shrink-0">
           <span className="text-7xl font-black leading-[0.8] tracking-tighter font-sans italic">BLK</span>
           <span className="text-7xl font-black leading-[0.8] tracking-tighter font-sans italic text-zinc-400">BLK</span>
@@ -405,8 +477,8 @@ export default function App() {
             </div>
             {roomData.hostId === user.uid && (
               <div className="space-y-4 pt-4">
-                <button onClick={addBot} className="w-full bg-stone-100 text-zinc-600 rounded-2xl p-4 font-black text-[11px] uppercase tracking-widest active:scale-95 flex items-center justify-center gap-2 border border-zinc-200">
-                   <Plus size={18}/> Додати бота
+                <button onClick={addBot} className="w-full h-14 bg-stone-100 text-zinc-600 rounded-2xl font-black text-xs uppercase tracking-widest active:scale-95 flex items-center justify-center gap-2 border border-zinc-200">
+                   <Plus size={20}/> Додати бота
                 </button>
                 <button onClick={startGame} disabled={roomData.players.length < 2} className="w-full bg-zinc-900 text-white rounded-[1.5rem] p-5 font-black uppercase tracking-widest disabled:opacity-20 shadow-xl shadow-zinc-900/30">Почати гру</button>
               </div>
@@ -418,18 +490,18 @@ export default function App() {
     );
   }
 
+  // --- GAME HELPERS ---
   const isMyTurn = roomData.players[roomData.turnIndex].id === user.uid;
   const myHand = roomData.playerHands[user.uid] || [];
   const pileSize = roomData.pile.reduce((acc, p) => acc + p.cards.length, 0);
   const lastPlay = roomData.pile[roomData.pile.length - 1];
   const lastPlayCount = lastPlay?.cards?.length || 0;
-  const lastPlayId = lastPlay?.playerId;
-  const lastPlayerName = roomData.players.find(p => p.id === lastPlayId)?.name || 'Хтось';
+  const lastPlayerName = roomData.players.find(p => p.id === lastPlay?.playerId)?.name || 'Хтось';
   
   const currentPhrase = roomData.currentClaim 
     ? String(CLAIM_PHRASES[roomData.claimPhraseIndex || 0]
         .replace('{name}', lastPlayerName)
-        .replace('{count}', lastPlayCount)
+        .replace('{countWord}', countToWord(lastPlayCount))
         .replace('{value}', roomData.currentClaim))
     : null;
 
@@ -452,8 +524,15 @@ export default function App() {
 
   return (
     <div className="h-dvh w-full fixed inset-0 bg-stone-100 text-zinc-900 font-mono flex flex-col overflow-hidden touch-none">
+      
+      {/* ПОВІДОМЛЕННЯ (ЗАЯВЛЕНА ФРАЗА) - ФІКСОВАНО ЗВЕРХУ НА ЧОРНОМУ */}
+      <div className={`absolute top-0 w-full bg-black text-white p-4 z-[110] text-center shadow-2xl transition-all duration-500 ${currentPhrase ? 'translate-y-0' : '-translate-y-full opacity-0'}`}>
+         <p className="text-[11px] font-black uppercase tracking-[0.05em] leading-tight italic">{currentPhrase}</p>
+      </div>
+
+      {/* ТОСТИ (ПОДІЇ ЯК ВГАДАВ/БРЕХНЯ) - ТРОХИ НИЖЧЕ */}
       {toast.visible && (
-        <div className={`absolute top-4 left-1/2 -translate-x-1/2 z-[100] w-[92%] max-w-sm p-4 rounded-[2rem] shadow-2xl flex items-center gap-3 animate-in slide-in-from-top-4 duration-500
+        <div className={`absolute top-16 left-1/2 -translate-x-1/2 z-[100] w-[92%] max-w-sm p-4 rounded-[2rem] shadow-2xl flex items-center gap-3 animate-in slide-in-from-top-4 duration-500
           ${toast.type === 'success' ? 'bg-green-500 text-white ring-8 ring-green-500/10' : 
             toast.type === 'error' ? 'bg-red-500 text-white ring-8 ring-red-500/10' : 
             'bg-zinc-900 text-white shadow-zinc-900/20'}`}
@@ -463,61 +542,72 @@ export default function App() {
         </div>
       )}
 
-      {/* HEADER */}
-      <div className="flex-none p-4 pt-12 flex justify-center items-start gap-4 overflow-x-auto hide-scrollbar z-10 shrink-0">
-        {roomData.players.map(p => {
-          if (p.id === user.uid) return null;
-          const isTurn = roomData.players[roomData.turnIndex].id === p.id;
-          return (
-            <div key={p.id} className={`flex flex-col items-center transition-all duration-300 ${isTurn ? 'scale-110 opacity-100 translate-y-1' : 'scale-90 opacity-40'}`}>
-              <div className="text-[9px] uppercase font-black mb-1.5 w-16 truncate text-center tracking-tight">{p.name}</div>
-              <div className="relative w-10 h-14 shadow-md rotate-[-1.5deg]"><CardBack />
-                 <div className="absolute -bottom-1.5 -right-1.5 bg-zinc-900 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] font-black shadow-lg">{roomData.playerHands[p.id]?.length || 0}</div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* TABLE AREA */}
-      <div className="flex-1 relative flex flex-col items-center justify-center p-4 min-h-0">
-        {isMyTurn && <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-zinc-900 text-white px-5 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-xl animate-pulse">Ваш хід</div>}
-        {pileSize > 0 && (
-          <div className="text-center mb-8 w-full px-4 animate-in fade-in duration-700 shrink-0">
-            <span className="text-[11px] text-zinc-400 font-black uppercase block mb-1 tracking-wider italic leading-tight">{currentPhrase}</span>
-            <span className="text-[5rem] sm:text-[5.5rem] font-black leading-none tracking-tighter drop-shadow-sm">{roomData.currentClaim}</span>
-          </div>
-        )}
-        <div className="relative w-36 h-52 sm:w-44 sm:h-64 shrink-0">
-          {pileSize === 0 ? (
-            <div className="absolute inset-0 border-[3px] border-dashed border-zinc-200 rounded-[12%] flex flex-col items-center justify-center text-[10px] uppercase font-black text-zinc-300 tracking-widest space-y-2 opacity-60">
-              <Plus size={20} /><span>Пусто</span>
-            </div>
-          ) : (
-            [...Array(Math.min(pileSize, 6))].map((_, i, arr) => {
-              const isTop = i === arr.length - 1;
-              const rot = isTop ? 0 : Math.sin(i * 123) * 12;
-              const offX = isTop ? 0 : Math.cos(i * 456) * 8;
-              const offY = isTop ? 0 : Math.sin(i * 789) * 8;
-              return (
-                <div key={i} className="absolute top-1/2 left-1/2 w-full h-full shadow-2xl transition-all duration-500" 
-                     style={{ transform: `translate(-50%, -50%) translate(${offX}px, ${offY}px) rotate(${rot}deg)`, zIndex: i }}>
-                  <CardBack />
+      {/* ОСНОВНА ІГРОВА ЗОНА */}
+      <div className="flex-1 relative flex items-center justify-center p-4 mt-8">
+        
+        {/* ГРАВЦІ ЗБОКУ ЗЛІВА */}
+        <div className="absolute left-2 top-1/2 -translate-y-1/2 flex flex-col gap-4 z-10">
+          {roomData.players.map(p => {
+            if (p.id === user.uid) return null;
+            const isTurn = roomData.players[roomData.turnIndex].id === p.id;
+            return (
+              <div key={p.id} className={`flex flex-col items-center transition-all duration-300 ${isTurn ? 'scale-110 opacity-100' : 'scale-90 opacity-40'}`}>
+                <div className="relative w-8 h-12 shadow-md rotate-[-2deg]"><CardBack />
+                   <div className="absolute -bottom-1 -right-1 bg-zinc-900 text-white rounded-full w-4.5 h-4.5 flex items-center justify-center text-[8px] font-black shadow-lg border border-white/20">{roomData.playerHands[p.id]?.length || 0}</div>
                 </div>
-              );
-            })
-          )}
-          {pileSize > 0 && (
-            <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 text-center font-black text-[10px] z-20 text-zinc-400 uppercase tracking-widest bg-stone-100 px-4 py-1.5 rounded-full border border-zinc-200 shadow-sm">Стопка: {pileSize}</div>
-          )}
+                <div className="text-[7px] uppercase font-black mt-1 w-10 truncate text-center tracking-tighter leading-none">{p.name}</div>
+              </div>
+            );
+          })}
         </div>
-        {!isMyTurn && <div className="mt-14 bg-white/60 backdrop-blur-md px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest animate-pulse border border-white shadow-sm">Думає {roomData.players[roomData.turnIndex].name}...</div>}
+
+        {/* ВІДБІЙ ЗБОКУ СПРАВА (НЕНАВ'ЯЗЛИВО) */}
+        <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col items-center gap-1 opacity-40">
+           <Equal size={16} className="text-zinc-400" />
+           <span className="text-[10px] font-black text-zinc-500">{roomData.discardPileCount}</span>
+        </div>
+
+        {/* СТІЛ (ЦЕНТР) */}
+        <div className="relative flex flex-col items-center">
+          {isMyTurn && <div className="absolute -top-16 left-1/2 -translate-x-1/2 z-20 bg-zinc-900 text-white px-5 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-xl animate-pulse">Ваш хід</div>}
+          
+          {roomData.currentClaim && (
+            <div className="text-center mb-8 animate-in fade-in duration-700">
+              <span className="text-[7.5rem] font-black leading-none tracking-tighter drop-shadow-sm text-zinc-900 select-none">{roomData.currentClaim}</span>
+            </div>
+          )}
+
+          <div className="relative w-40 h-56 sm:w-48 sm:h-64 shrink-0">
+            {pileSize === 0 ? (
+              <div className="absolute inset-0 border-[3px] border-dashed border-zinc-200 rounded-[12%] flex flex-col items-center justify-center text-[10px] uppercase font-black text-zinc-300 tracking-widest space-y-2 opacity-60">
+                <Plus size={20} /><span>Порожньо</span>
+              </div>
+            ) : (
+              [...Array(Math.min(pileSize, 6))].map((_, i, arr) => {
+                const isTop = i === arr.length - 1;
+                const rot = isTop ? 0 : Math.sin(i * 123) * 12;
+                const offX = isTop ? 0 : Math.cos(i * 456) * 8;
+                const offY = isTop ? 0 : Math.sin(i * 789) * 8;
+                return (
+                  <div key={i} className="absolute top-1/2 left-1/2 w-full h-full shadow-2xl transition-all duration-500" 
+                       style={{ transform: `translate(-50%, -50%) translate(${offX}px, ${offY}px) rotate(${rot}deg)`, zIndex: i }}>
+                    <CardBack />
+                  </div>
+                );
+              })
+            )}
+            {pileSize > 0 && (
+              <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 text-center font-black text-[10px] z-20 text-zinc-400 uppercase tracking-widest bg-stone-100 px-4 py-1.5 rounded-full border border-zinc-200 shadow-sm whitespace-nowrap">Стіл: {pileSize}</div>
+            )}
+          </div>
+        </div>
+
+        {!isMyTurn && <div className="absolute bottom-4 bg-white/60 backdrop-blur-md px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest animate-pulse border border-white shadow-sm">Думає {roomData.players[roomData.turnIndex].name}...</div>}
       </div>
 
-      {/* ACTION & HAND AREA */}
+      {/* ЗОНА РУКИ ТА ДІЙ */}
       <div className={`bg-white border-t border-zinc-200/50 shadow-[0_-20px_50px_rgba(0,0,0,0.08)] z-30 transition-all duration-500 ease-in-out shrink-0 flex flex-col relative ${isMyTurn ? 'h-[48%]' : 'h-[175px] opacity-70 grayscale-[0.2]'}`}>
         
-        {/* КНОПКИ (ТЕПЕР ЧІТКО НАД КАРТАМИ) */}
         <div className={`flex gap-3 px-4 pt-4 shrink-0 transition-all duration-500 overflow-hidden ${isMyTurn ? 'h-20 opacity-100' : 'h-0 opacity-0'}`}>
           {roomData.phase === 'NEW_ROUND' ? (
             <button onClick={() => setShowClaimModal(true)} disabled={selectedCards.length === 0} className="flex-1 h-14 bg-zinc-900 text-white rounded-[1.5rem] font-black uppercase tracking-widest disabled:opacity-20 active:scale-95 transition-all shadow-xl shadow-zinc-900/20">ПОКЛАСТИ ({selectedCards.length})</button>
@@ -530,7 +620,6 @@ export default function App() {
           )}
         </div>
 
-        {/* КАРТИ (ТЕПЕР ЗАВЖДИ ВИДИМІ) */}
         <div className="flex-1 w-full relative overflow-x-auto snap-x hide-scrollbar flex items-center px-10 touch-pan-x">
           <div className="flex flex-nowrap items-center h-full">
             {sortedHand.map((card, idx) => {
@@ -558,29 +647,37 @@ export default function App() {
         <div className="absolute inset-0 bg-white/98 backdrop-blur-md z-[150] flex flex-col items-center justify-center p-6 animate-in zoom-in duration-300">
           <p className="text-[10px] font-black uppercase tracking-[0.3em] mb-10 text-zinc-400">👁 ОКО ПОБАЧИЛО:</p>
           <div className="flex gap-4">{roomData.revealedCards.map((c, i) => (<div key={i} className="w-24 h-36 animate-in slide-in-from-bottom-4 duration-500"><CardFace card={c} isSelected={false} /></div>))}</div>
-          <button onClick={() => updateDoc(doc(db, 'artifacts', gameAppId, 'public', 'data', 'rooms', roomId), { revealedCardsTo: null, revealedCards: null })} className="mt-12 bg-zinc-900 text-white rounded-3xl px-12 py-5 text-[10px] font-black uppercase tracking-widest shadow-2xl active:scale-95 transition-all">Зрозумів</button>
+          <button onClick={() => { updateDoc(doc(db, 'artifacts', gameAppId, 'public', 'data', 'rooms', roomId), { revealedCardsTo: null, revealedCards: null }); playSound('click'); }} className="mt-12 bg-zinc-900 text-white rounded-3xl px-12 py-5 text-[10px] font-black uppercase tracking-widest shadow-2xl active:scale-95 transition-all">Зрозумів</button>
         </div>
       )}
 
-      {/* CLAIM MODAL */}
+      {/* МОДАЛКА ВИБОРУ (ЗАЯВИТИ ЯК) - ВЕЛИЧЕЗНІ КНОПКИ */}
       {showClaimModal && (
-        <div className="absolute inset-0 bg-white/98 backdrop-blur-2xl z-[200] flex flex-col items-center justify-center p-8 animate-in fade-in zoom-in-95 duration-300 overflow-hidden">
-          <button onClick={() => setShowClaimModal(false)} className="absolute top-10 right-10 p-4 text-zinc-300 hover:text-zinc-900 transition-colors bg-white rounded-full shadow-lg shrink-0"><X size={36}/></button>
-          <div className="w-full max-w-sm shrink-0">
-            <p className="text-center text-[10px] font-black uppercase tracking-[0.4em] mb-12 text-zinc-400 italic">Заявити як:</p>
-            <div className="grid grid-cols-5 gap-3">
+        <div className="absolute inset-0 bg-white z-[300] flex flex-col items-center justify-center p-4 animate-in fade-in slide-in-from-bottom-10 duration-300">
+          <button onClick={() => { setShowClaimModal(false); playSound('click'); }} className="absolute top-6 right-6 p-4 text-zinc-300 hover:text-zinc-900 transition-colors bg-zinc-50 rounded-full shadow-lg z-10"><X size={44}/></button>
+          
+          <div className="w-full h-full flex flex-col justify-center max-w-lg">
+            <p className="text-center text-[11px] font-black uppercase tracking-[0.5em] mt-10 mb-6 text-zinc-400 italic">Заявити як:</p>
+            
+            <div className="grid grid-cols-2 gap-4 flex-1 max-h-[75%] overflow-y-auto hide-scrollbar pb-4">
               {[1,2,3,4,5,6,7,8,9,10].map(val => (
-                <button key={val} onClick={() => submitPlayCards(val)} className="aspect-square bg-white border border-zinc-100 rounded-[2rem] flex items-center justify-center text-4xl font-light shadow-sm active:bg-zinc-900 active:text-white transition-all transform active:scale-90">{val}</button>
+                <button 
+                  key={val} 
+                  onClick={() => submitPlayCards(val)} 
+                  className="h-24 sm:h-32 bg-stone-50 border-2 border-zinc-100 rounded-[2rem] flex items-center justify-center text-6xl font-light text-zinc-800 shadow-sm active:bg-zinc-900 active:text-white transition-all transform active:scale-90"
+                >
+                  {val}
+                </button>
               ))}
             </div>
+
             {selectedCards.length === 1 && [CARD_TYPES.DISCARD, CARD_TYPES.EYE].includes(selectedCards[0].type) && (
-              <div className="mt-14 space-y-4 animate-in slide-in-from-bottom-4 duration-500">
-                <p className="text-center text-[9px] font-black uppercase tracking-widest text-zinc-300 mb-2">Або спеціальний хід:</p>
+              <div className="mt-6 space-y-3 animate-in slide-in-from-bottom-4 duration-500 mb-6">
                 {selectedCards[0].type === CARD_TYPES.DISCARD && (
-                  <button onClick={() => submitSpecialCard(CARD_TYPES.DISCARD)} className="w-full py-5 bg-zinc-900 text-white rounded-[2rem] flex items-center justify-center gap-3 font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all shadow-2xl shadow-zinc-900/30"><Equal size={18}/> КИНУТИ ВІДБІЙ</button>
+                  <button onClick={() => submitSpecialCard(CARD_TYPES.DISCARD)} className="w-full py-5 bg-zinc-900 text-white rounded-[1.8rem] flex items-center justify-center gap-3 font-black text-xs uppercase tracking-widest active:scale-95 shadow-2xl shadow-zinc-900/30"><Equal size={22}/> КИНУТИ ВІДБІЙ</button>
                 )}
                 {selectedCards[0].type === CARD_TYPES.EYE && (
-                  <button onClick={() => submitSpecialCard(CARD_TYPES.EYE)} className="w-full py-5 bg-zinc-900 text-white rounded-[2rem] flex items-center justify-center gap-3 font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all shadow-2xl shadow-zinc-900/30"><Eye size={18}/> ВИКОРИСТАТИ ОКО</button>
+                  <button onClick={() => submitSpecialCard(CARD_TYPES.EYE)} className="w-full py-5 bg-zinc-900 text-white rounded-[1.8rem] flex items-center justify-center gap-3 font-black text-xs uppercase tracking-widest active:scale-95 shadow-2xl shadow-zinc-900/30"><Eye size={22}/> ВИКОРИСТАТИ ОКО</button>
                 )}
               </div>
             )}
@@ -597,7 +694,7 @@ export default function App() {
         .custom-scroll::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
         @keyframes drop { 0% { transform: translate(-50%, -120%) scale(1.2); opacity: 0; } 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
         .animate-drop { animation: drop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
-        body { overflow: hidden; overscroll-behavior: none; position: fixed; width: 100%; height: 100%; }
+        body { overflow: hidden; overscroll-behavior: none; position: fixed; width: 100%; height: 100%; font-family: 'Space Grotesk', sans-serif; }
         html { overflow: hidden; }
       `}} />
     </div>
